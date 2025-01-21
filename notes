@@ -1,0 +1,45 @@
+id $USER
+ls -al /dev/kvm
+[ -r /dev/kvm ] && [ -w /dev/kvm ] && echo "OK" || echo "FAIL"
+
+# =================================
+
+sudo systemctl start docker
+sudo tools/devtool checkenv
+sudo tools/devtool build
+
+# [Firecracker release.sh 2025-01-21T01:16:44+00:00] Binaries placed under build/cargo_target/x86_64-unknown-linux-musl/debug
+# toolchain="$(uname -m)-unknown-linux-musl"
+
+$ sudo cp build/cargo_target/$(uname -m)-unknown-linux-musl/debug/firecracker ../firecracker_run/
+
+# =================================
+
+# firecracker_run/
+
+ARCH="$(uname -m)"
+
+latest=$(wget "http://spec.ccfc.min.s3.amazonaws.com/?prefix=firecracker-ci/v1.11/$ARCH/vmlinux-5.10&list-type=2" -O - 2>/dev/null | grep -oP "(?<=<Key>)(firecracker-ci/v1.11/$ARCH/vmlinux-5\.10\.[0-9]{1,3})(?=</Key>)")
+
+# Download a linux kernel binary
+wget "https://s3.amazonaws.com/spec.ccfc.min/${latest}"
+
+# Download a rootfs
+wget -O ubuntu-24.04.squashfs.upstream "https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.11/${ARCH}/ubuntu-24.04.squashfs"
+
+# Create an ssh key for the rootfs
+sudo rm -fr squashfs-root/
+unsquashfs ubuntu-24.04.squashfs.upstream
+
+sudo rm -f ubuntu-24.04.id_rsa
+ssh-keygen -f id_rsa -N ""
+cp -v id_rsa.pub squashfs-root/root/.ssh/authorized_keys
+mv -v id_rsa ./ubuntu-24.04.id_rsa
+
+# create ext4 filesystem image
+sudo rm -fr ubuntu-24.04.ext4
+sudo chown -R root:root squashfs-root
+truncate -s 400M ubuntu-24.04.ext4
+sudo mkfs.ext4 -d squashfs-root -F ubuntu-24.04.ext4
+
+// ==================================
