@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use semver::Version;
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "linux")]
 use userfaultfd::{FeatureFlags, Uffd, UffdBuilder};
 use vmm_sys_util::sock_ctrl_msg::ScmSocket;
 
@@ -27,6 +28,7 @@ use crate::cpu_config::x86_64::cpuid::CpuidTrait;
 use crate::device_manager::persist::{ACPIDeviceManagerState, DevicePersistError, DeviceStates};
 use crate::logger::{info, warn};
 use crate::resources::VmResources;
+#[cfg(target_os = "linux")]
 use crate::seccomp::BpfThreadMap;
 use crate::snapshot::Snapshot;
 use crate::utils::u64_to_usize;
@@ -90,6 +92,7 @@ pub struct MicrovmState {
     pub acpi_dev_state: ACPIDeviceManagerState,
 }
 
+#[cfg(target_os = "linux")]
 /// This describes the mapping between Firecracker base virtual address and
 /// offset in the buffer or file backend for a guest memory region. It is used
 /// to tell an external process/thread where to populate the guest memory data
@@ -406,6 +409,7 @@ pub enum RestoreFromSnapshotError {
 pub enum RestoreFromSnapshotGuestMemoryError {
     /// Error creating guest memory from file: {0}
     File(#[from] GuestMemoryFromFileError),
+    #[cfg(target_os = "linux")]
     /// Error creating guest memory from uffd: {0}
     Uffd(#[from] GuestMemoryFromUffdError),
 }
@@ -414,6 +418,7 @@ pub enum RestoreFromSnapshotGuestMemoryError {
 pub fn restore_from_snapshot(
     instance_info: &InstanceInfo,
     event_manager: &mut EventManager,
+    #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
     params: &LoadSnapshotParams,
     vm_resources: &mut VmResources,
@@ -447,7 +452,7 @@ pub fn restore_from_snapshot(
     let mem_backend_path = &params.mem_backend.backend_path;
     let mem_state = &microvm_state.memory_state;
 
-    let (guest_memory, uffd) = match params.mem_backend.backend_type {
+    let (guest_memory, #[cfg(target_os = "linux")] uffd) = match params.mem_backend.backend_type {
         MemBackendType::File => (
             guest_memory_from_file(
                 mem_backend_path,
@@ -458,6 +463,7 @@ pub fn restore_from_snapshot(
             .map_err(RestoreFromSnapshotGuestMemoryError::File)?,
             None,
         ),
+        #[cfg(target_os = "linux")]
         MemBackendType::Uffd => guest_memory_from_uffd(
             mem_backend_path,
             mem_state,
@@ -474,7 +480,9 @@ pub fn restore_from_snapshot(
         event_manager,
         microvm_state,
         guest_memory,
+        #[cfg(target_os = "linux")]
         uffd,
+        #[cfg(target_os = "linux")]
         seccomp_filters,
         vm_resources,
     )
@@ -527,6 +535,7 @@ fn guest_memory_from_file(
     Ok(guest_mem)
 }
 
+#[cfg(target_os = "linux")]
 /// Error type for [`guest_memory_from_uffd`]
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 pub enum GuestMemoryFromUffdError {
@@ -542,6 +551,7 @@ pub enum GuestMemoryFromUffdError {
     Send(#[from] vmm_sys_util::errno::Error),
 }
 
+#[cfg(target_os = "linux")]
 fn guest_memory_from_uffd(
     mem_uds_path: &Path,
     mem_state: &GuestMemoryState,
@@ -577,6 +587,7 @@ fn guest_memory_from_uffd(
     Ok((guest_memory, Some(uffd)))
 }
 
+#[cfg(target_os = "linux")]
 fn create_guest_memory(
     mem_state: &GuestMemoryState,
     track_dirty_pages: bool,
@@ -596,6 +607,7 @@ fn create_guest_memory(
     Ok((guest_memory, backend_mappings))
 }
 
+#[cfg(target_os = "linux")]
 fn send_uffd_handshake(
     mem_uds_path: &Path,
     backend_mappings: &[GuestRegionUffdMapping],
@@ -764,6 +776,7 @@ mod tests {
         )
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn test_create_guest_memory() {
         let mem_state = GuestMemoryState {
@@ -786,6 +799,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn test_send_uffd_handshake() {
         let uffd_regions = vec![

@@ -17,6 +17,7 @@ use crate::FcExitCode;
 // See https://github.com/rust-lang/libc/issues/716 for why the offset is different in Rust.
 const SI_OFF_SYSCALL: isize = 6;
 
+#[cfg(target_os = "linux")]
 const SYS_SECCOMP_CODE: i32 = 1;
 
 #[inline]
@@ -60,6 +61,7 @@ macro_rules! generate_handler {
 }
 
 fn log_sigsys_err(si_code: c_int, info: *mut siginfo_t) {
+    #[cfg(target_os = "linux")]
     if si_code != SYS_SECCOMP_CODE {
         // We received a SIGSYS for a reason other than `bad syscall`.
         exit_with_code(FcExitCode::UnexpectedError);
@@ -112,6 +114,7 @@ generate_handler!(
     sigsys_handler,
     SIGSYS,
     BadSyscall,
+    #[cfg(target_os = "linux")]
     METRICS.seccomp.num_faults,
     log_sigsys_err
 );

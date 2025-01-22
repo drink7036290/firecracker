@@ -29,6 +29,7 @@ pub enum SnapshotType {
 pub enum MemBackendType {
     /// Guest memory contents will be loaded from a file.
     File,
+    #[cfg(target_os = "linux")]
     /// Guest memory will be served through UFFD by a separate process.
     Uffd,
 }

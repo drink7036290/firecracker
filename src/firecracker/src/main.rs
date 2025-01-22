@@ -5,6 +5,7 @@ mod api_server;
 mod api_server_adapter;
 mod gen;
 mod metrics;
+#[cfg(target_os = "linux")]
 mod seccomp;
 
 use std::fs::{self, File};
@@ -16,6 +17,7 @@ use std::{io, panic};
 
 use api_server_adapter::ApiServerError;
 use event_manager::SubscriberOps;
+#[cfg(target_os = "linux")]
 use seccomp::FilterError;
 use utils::arg_parser::{ArgParser, Argument};
 use utils::validators::validate_instance_id;
@@ -26,6 +28,7 @@ use vmm::logger::{
 };
 use vmm::persist::SNAPSHOT_VERSION;
 use vmm::resources::VmResources;
+#[cfg(target_os = "linux")]
 use vmm::seccomp::BpfThreadMap;
 use vmm::signal_handler::register_signal_handlers;
 use vmm::snapshot::{Snapshot, SnapshotError};
@@ -34,6 +37,7 @@ use vmm::vmm_config::metrics::{init_metrics, MetricsConfig, MetricsConfigError};
 use vmm::{EventManager, FcExitCode, HTTP_MAX_PAYLOAD_SIZE};
 use vmm_sys_util::terminal::Terminal;
 
+#[cfg(target_os = "linux")]
 use crate::seccomp::SeccompConfig;
 
 // The reason we place default API socket under /run is that API socket is a
@@ -59,6 +63,7 @@ enum MainError {
     LoggerInitialization(vmm::logger::LoggerUpdateError),
     /// Could not initialize metrics: {0}
     MetricsInitialization(MetricsConfigError),
+    #[cfg(target_os = "linux")]
     /// Seccomp error: {0}
     SeccompFilter(FilterError),
     /// Failed to resize fd table: {0}
@@ -155,6 +160,7 @@ fn main_exec() -> Result<(), MainError> {
                     .default_value(vmm::logger::DEFAULT_INSTANCE_ID)
                     .help("MicroVM unique identifier."),
             )
+            #[cfg(target_os = "linux")]
             .arg(
                 Argument::new("seccomp-filter")
                     .takes_value(true)
@@ -164,6 +170,7 @@ fn main_exec() -> Result<(), MainError> {
                          filter. For advanced users.",
                     ),
             )
+            #[cfg(target_os = "linux")]
             .arg(
                 Argument::new("no-seccomp")
                     .takes_value(false)
@@ -351,6 +358,7 @@ fn main_exec() -> Result<(), MainError> {
         init_metrics(metrics_config).map_err(MainError::MetricsInitialization)?;
     }
 
+    #[cfg(target_os = "linux")]
     let mut seccomp_filters: BpfThreadMap = SeccompConfig::from_args(
         arguments.flag_present("no-seccomp"),
         arguments.single_value("seccomp-filter"),
@@ -416,6 +424,7 @@ fn main_exec() -> Result<(), MainError> {
             ProcessTimeReporter::new(start_time_us, start_time_cpu_us, parent_cpu_time_us);
 
         api_server_adapter::run_with_api(
+            #[cfg(target_os = "linux")]
             &mut seccomp_filters,
             vmm_config_json,
             bind_path,
@@ -428,11 +437,13 @@ fn main_exec() -> Result<(), MainError> {
         )
         .map_err(MainError::RunWithApi)
     } else {
+        #[cfg(target_os = "linux")]
         let seccomp_filters: BpfThreadMap = seccomp_filters
             .into_iter()
             .filter(|(k, _)| k != "api")
             .collect();
         run_without_api(
+            #[cfg(target_os = "linux")]
             &seccomp_filters,
             vmm_config_json,
             instance_info,
@@ -555,6 +566,7 @@ pub enum BuildFromJsonError {
 
 // Configure and start a microVM as described by the command-line JSON.
 fn build_microvm_from_json(
+    #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
     event_manager: &mut EventManager,
     config_json: String,
@@ -571,6 +583,7 @@ fn build_microvm_from_json(
         &instance_info,
         &vm_resources,
         event_manager,
+        #[cfg(target_os = "linux")]
         seccomp_filters,
     )
     .map_err(BuildFromJsonError::StartMicroVM)?;
@@ -589,6 +602,7 @@ enum RunWithoutApiError {
 }
 
 fn run_without_api(
+    #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
     config_json: Option<String>,
     instance_info: InstanceInfo,
@@ -604,6 +618,7 @@ fn run_without_api(
 
     // Build the microVm. We can ignore VmResources since it's not used without api.
     let (_, vmm) = build_microvm_from_json(
+        #[cfg(target_os = "linux")]
         seccomp_filters,
         &mut event_manager,
         // Safe to unwrap since '--no-api' requires this to be set.

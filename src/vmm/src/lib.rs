@@ -96,6 +96,7 @@ pub mod persist;
 pub mod resources;
 /// microVM RPC API adapters.
 pub mod rpc_interface;
+#[cfg(target_os = "linux")]
 /// Seccomp filter utilities.
 pub mod seccomp;
 /// Signal handling utilities.
@@ -122,7 +123,9 @@ use device_manager::acpi::ACPIDeviceManager;
 use device_manager::resources::ResourceAllocator;
 use devices::acpi::vmgenid::VmGenIdError;
 use event_manager::{EventManager as BaseEventManager, EventOps, Events, MutEventSubscriber};
+#[cfg(target_os = "linux")]
 use seccomp::BpfProgram;
+#[cfg(target_os = "linux")]
 use userfaultfd::Uffd;
 use vmm_sys_util::epoll::EventSet;
 use vmm_sys_util::eventfd::EventFd;
@@ -225,6 +228,7 @@ pub enum VmmError {
     Metrics(MetricsError),
     /// Cannot add a device to the MMIO Bus. {0}
     RegisterMMIODevice(device_manager::mmio::MmioError),
+    #[cfg(target_os = "linux")]
     /// Cannot install seccomp filters: {0}
     SeccompFilters(seccomp::InstallationError),
     /// Error writing to the serial console: {0}
@@ -313,6 +317,7 @@ pub struct Vmm {
     kvm: Kvm,
     vm: Vm,
     guest_memory: GuestMemoryMmap,
+    #[cfg(target_os = "linux")]
     // Save UFFD in order to keep it open in the Firecracker process, as well.
     // Since this field is never read again, we need to allow `dead_code`.
     #[allow(dead_code)]
@@ -365,6 +370,7 @@ impl Vmm {
     pub fn start_vcpus(
         &mut self,
         mut vcpus: Vec<Vcpu>,
+        #[cfg(target_os = "linux")]
         vcpu_seccomp_filter: Arc<BpfProgram>,
     ) -> Result<(), StartVcpusError> {
         let vcpu_count = vcpus.len();
@@ -393,7 +399,7 @@ impl Vmm {
                 .set_pio_bus(self.pio_device_manager.io_bus.clone());
 
             self.vcpus_handles
-                .push(vcpu.start_threaded(vcpu_seccomp_filter.clone(), barrier.clone())?);
+                .push(vcpu.start_threaded(#[cfg(target_os = "linux")] vcpu_seccomp_filter.clone(), barrier.clone())?);
         }
         self.instance_info.state = VmState::Paused;
         // Wait for vCPUs to initialize their TLS before moving forward.

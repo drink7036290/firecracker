@@ -344,7 +344,7 @@ fn create_mem_regions(mappings: &Vec<GuestRegionUffdMapping>, page_size: usize) 
     mem_regions
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use std::mem::MaybeUninit;
     use std::os::unix::net::UnixListener;

@@ -5,6 +5,8 @@
 //! which loads the whole region from the backing memory file
 //! when a page fault occurs.
 
+#![cfg_attr(not(target_os = "linux"), allow(dead_code))]
+
 mod uffd_utils;
 
 use std::fs::File;
@@ -12,6 +14,7 @@ use std::os::unix::net::UnixListener;
 
 use uffd_utils::{Runtime, UffdHandler};
 
+#[cfg(target_os = "linux")]
 fn main() {
     let mut args = std::env::args();
     let uffd_sock_path = args.nth(1).expect("No socket path given");
@@ -42,4 +45,9 @@ fn main() {
             _ => panic!("Unexpected event on userfaultfd"),
         }
     });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn main() {
+    // On macOS or other platforms, this is a no-op
 }

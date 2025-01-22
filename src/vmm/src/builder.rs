@@ -19,6 +19,7 @@ use linux_loader::loader::elf::Elf as Loader;
 #[cfg(target_arch = "aarch64")]
 use linux_loader::loader::pe::PE as Loader;
 use linux_loader::loader::KernelLoader;
+#[cfg(target_os = "linux")]
 use userfaultfd::Uffd;
 use utils::time::TimestampUs;
 use vm_memory::ReadVolatile;
@@ -62,6 +63,7 @@ use crate::gdb;
 use crate::logger::{debug, error};
 use crate::persist::{MicrovmState, MicrovmStateError};
 use crate::resources::VmResources;
+#[cfg(target_os = "linux")]
 use crate::seccomp::BpfThreadMap;
 use crate::snapshot::Persist;
 use crate::utils::u64_to_usize;
@@ -114,6 +116,7 @@ pub enum StartMicrovmError {
     MissingKernelConfig,
     /// Cannot start microvm without guest mem_size config.
     MissingMemSizeConfig,
+    #[cfg(target_os = "linux")]
     /// No seccomp filter for thread category: {0}
     MissingSeccompFilters(String),
     /// The net device configuration is missing the tap device.
@@ -154,6 +157,7 @@ fn create_vmm_and_vcpus(
     instance_info: &InstanceInfo,
     event_manager: &mut EventManager,
     guest_memory: GuestMemoryMmap,
+    #[cfg(target_os = "linux")]
     uffd: Option<Uffd>,
     track_dirty_pages: bool,
     vcpu_count: u8,
@@ -237,6 +241,7 @@ fn create_vmm_and_vcpus(
         kvm,
         vm,
         guest_memory,
+        #[cfg(target_os = "linux")]
         uffd,
         vcpus_handles: Vec::new(),
         vcpus_exit_evt,
@@ -259,6 +264,7 @@ pub fn build_microvm_for_boot(
     instance_info: &InstanceInfo,
     vm_resources: &super::resources::VmResources,
     event_manager: &mut EventManager,
+    #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
 ) -> Result<Arc<Mutex<Vmm>>, StartMicrovmError> {
     use self::StartMicrovmError::*;
@@ -371,6 +377,7 @@ pub fn build_microvm_for_boot(
         .unwrap()
         .start_vcpus(
             vcpus,
+            #[cfg(target_os = "linux")]
             seccomp_filters
                 .get("vcpu")
                 .ok_or_else(|| MissingSeccompFilters("vcpu".to_string()))?
@@ -379,6 +386,7 @@ pub fn build_microvm_for_boot(
         .map_err(VmmError::VcpuStart)
         .map_err(Internal)?;
 
+    #[cfg(target_os = "linux")]
     // Load seccomp filters for the VMM thread.
     // Execution panics if filters cannot be loaded, use --no-seccomp if skipping filters
     // altogether is the desired behaviour.
@@ -407,10 +415,11 @@ pub fn build_and_boot_microvm(
     instance_info: &InstanceInfo,
     vm_resources: &super::resources::VmResources,
     event_manager: &mut EventManager,
+    #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
 ) -> Result<Arc<Mutex<Vmm>>, StartMicrovmError> {
     debug!("event_start: build microvm for boot");
-    let vmm = build_microvm_for_boot(instance_info, vm_resources, event_manager, seccomp_filters)?;
+    let vmm = build_microvm_for_boot(instance_info, vm_resources, event_manager, #[cfg(target_os = "linux")] seccomp_filters)?;
     debug!("event_end: build microvm for boot");
     // The vcpus start off in the `Paused` state, let them run.
     debug!("event_start: boot microvm");
@@ -445,14 +454,17 @@ pub enum BuildMicrovmFromSnapshotError {
     RestoreMmioDevice(#[from] MicrovmStateError),
     /// Failed to emulate MMIO serial: {0}
     EmulateSerialInit(#[from] crate::EmulateSerialInitError),
+    #[cfg(target_os = "linux")]
     /// Failed to start vCPUs as no vCPU seccomp filter found.
     MissingVcpuSeccompFilters,
     /// Failed to start vCPUs: {0}
     StartVcpus(#[from] crate::StartVcpusError),
     /// Failed to restore vCPUs: {0}
     RestoreVcpus(#[from] VcpuError),
+    #[cfg(target_os = "linux")]
     /// Failed to apply VMM secccomp filter as none found.
     MissingVmmSeccompFilters,
+    #[cfg(target_os = "linux")]
     /// Failed to apply VMM secccomp filter: {0}
     SeccompFiltersInternal(#[from] crate::seccomp::InstallationError),
     /// Failed to restore ACPI device manager: {0}
@@ -471,7 +483,9 @@ pub fn build_microvm_from_snapshot(
     event_manager: &mut EventManager,
     microvm_state: MicrovmState,
     guest_memory: GuestMemoryMmap,
+    #[cfg(target_os = "linux")]
     uffd: Option<Uffd>,
+    #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
     vm_resources: &mut VmResources,
 ) -> Result<Arc<Mutex<Vmm>>, BuildMicrovmFromSnapshotError> {
@@ -481,6 +495,7 @@ pub fn build_microvm_from_snapshot(
         instance_info,
         event_manager,
         guest_memory,
+        #[cfg(target_os = "linux")]
         uffd,
         vm_resources.machine_config.track_dirty_pages,
         vm_resources.machine_config.vcpu_count,
@@ -559,6 +574,7 @@ pub fn build_microvm_from_snapshot(
     // Move vcpus to their own threads and start their state machine in the 'Paused' state.
     vmm.start_vcpus(
         vcpus,
+        #[cfg(target_os = "linux")]
         seccomp_filters
             .get("vcpu")
             .ok_or(BuildMicrovmFromSnapshotError::MissingVcpuSeccompFilters)?
@@ -568,6 +584,7 @@ pub fn build_microvm_from_snapshot(
     let vmm = Arc::new(Mutex::new(vmm));
     event_manager.add_subscriber(vmm.clone());
 
+    #[cfg(target_os = "linux")]
     // Load seccomp filters for the VMM thread.
     // Keep this as the last step of the building process.
     crate::seccomp::apply_filter(
@@ -575,6 +592,7 @@ pub fn build_microvm_from_snapshot(
             .get("vmm")
             .ok_or(BuildMicrovmFromSnapshotError::MissingVmmSeccompFilters)?,
     )?;
+    #[cfg(target_os = "linux")]
     debug!("event_end: build microvm from snapshot");
 
     Ok(vmm)
@@ -1175,6 +1193,7 @@ pub(crate) mod tests {
             kvm,
             vm,
             guest_memory,
+            #[cfg(target_os = "linux")]
             uffd: None,
             vcpus_handles: Vec::new(),
             vcpus_exit_evt,

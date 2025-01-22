@@ -20,6 +20,7 @@ use vmm::logger::{
     debug, error, info, update_metric_with_elapsed_time, warn, ProcessTimeReporter, METRICS,
 };
 use vmm::rpc_interface::{ApiRequest, ApiResponse, VmmAction};
+#[cfg(target_os = "linux")]
 use vmm::seccomp::BpfProgramRef;
 use vmm::vmm_config::snapshot::SnapshotType;
 use vmm_sys_util::eventfd::EventFd;
@@ -64,6 +65,7 @@ impl ApiServer {
         &mut self,
         mut server: HttpServer,
         process_time_reporter: ProcessTimeReporter,
+        #[cfg(target_os = "linux")]
         seccomp_filter: BpfProgramRef,
         api_payload_limit: usize,
     ) {
@@ -75,6 +77,7 @@ impl ApiServer {
         // Store process CPU start time metric.
         process_time_reporter.report_cpu_start_time();
 
+        #[cfg(target_os = "linux")]
         // Load seccomp filters on the API thread.
         // Execution panics if filters cannot be loaded, use --no-seccomp if skipping filters
         // altogether is the desired behaviour.
@@ -208,6 +211,7 @@ mod tests {
     use vmm::builder::StartMicrovmError;
     use vmm::logger::StoreMetric;
     use vmm::rpc_interface::{VmmActionError, VmmData};
+    #[cfg(target_os = "linux")]
     use vmm::seccomp::get_empty_filters;
     use vmm::vmm_config::instance_info::InstanceInfo;
     use vmm::vmm_config::snapshot::CreateSnapshotParams;
@@ -381,6 +385,7 @@ mod tests {
         let to_vmm_fd = EventFd::new(libc::EFD_NONBLOCK).unwrap();
         let (api_request_sender, _from_api) = channel();
         let (to_api, vmm_response_receiver) = channel();
+        #[cfg(target_os = "linux")]
         let seccomp_filters = get_empty_filters();
         let server = HttpServer::new(PathBuf::from(api_thread_path_to_socket)).unwrap();
         thread::Builder::new()
@@ -389,6 +394,7 @@ mod tests {
                 ApiServer::new(api_request_sender, vmm_response_receiver, to_vmm_fd).run(
                     server,
                     ProcessTimeReporter::new(Some(1), Some(1), Some(1)),
+                    #[cfg(target_os = "linux")]
                     seccomp_filters.get("api").unwrap(),
                     vmm::HTTP_MAX_PAYLOAD_SIZE,
                 );
@@ -423,6 +429,7 @@ mod tests {
         let to_vmm_fd = EventFd::new(libc::EFD_NONBLOCK).unwrap();
         let (api_request_sender, _from_api) = channel();
         let (_to_api, vmm_response_receiver) = channel();
+        #[cfg(target_os = "linux")]
         let seccomp_filters = get_empty_filters();
 
         let server = HttpServer::new(PathBuf::from(api_thread_path_to_socket)).unwrap();
@@ -432,6 +439,7 @@ mod tests {
                 ApiServer::new(api_request_sender, vmm_response_receiver, to_vmm_fd).run(
                     server,
                     ProcessTimeReporter::new(Some(1), Some(1), Some(1)),
+                    #[cfg(target_os = "linux")]
                     seccomp_filters.get("api").unwrap(),
                     50,
                 )
@@ -468,6 +476,7 @@ mod tests {
         let to_vmm_fd = EventFd::new(libc::EFD_NONBLOCK).unwrap();
         let (api_request_sender, _from_api) = channel();
         let (_to_api, vmm_response_receiver) = channel();
+        #[cfg(target_os = "linux")]
         let seccomp_filters = get_empty_filters();
 
         let api_kill_switch = EventFd::new(libc::EFD_NONBLOCK).unwrap();
@@ -482,6 +491,7 @@ mod tests {
                 ApiServer::new(api_request_sender, vmm_response_receiver, to_vmm_fd).run(
                     server,
                     ProcessTimeReporter::new(Some(1), Some(1), Some(1)),
+                    #[cfg(target_os = "linux")]
                     seccomp_filters.get("api").unwrap(),
                     vmm::HTTP_MAX_PAYLOAD_SIZE,
                 )

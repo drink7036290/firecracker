@@ -14,6 +14,7 @@ use vmm::rpc_interface::{
     ApiRequest, ApiResponse, BuildMicrovmFromRequestsError, PrebootApiController,
     RuntimeApiController, VmmAction,
 };
+#[cfg(target_os = "linux")]
 use vmm::seccomp::BpfThreadMap;
 use vmm::vmm_config::instance_info::InstanceInfo;
 use vmm::{EventManager, FcExitCode, Vmm};
@@ -137,6 +138,7 @@ impl MutEventSubscriber for ApiServerAdapter {
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_with_api(
+    #[cfg(target_os = "linux")]
     seccomp_filters: &mut BpfThreadMap,
     config_json: Option<String>,
     bind_path: PathBuf,
@@ -161,6 +163,7 @@ pub(crate) fn run_with_api(
     let to_vmm_event_fd = api_event_fd
         .try_clone()
         .expect("Failed to clone API event FD");
+    #[cfg(target_os = "linux")]
     let api_seccomp_filter = seccomp_filters
         .remove("api")
         .expect("Missing seccomp filter for API thread.");
@@ -191,6 +194,7 @@ pub(crate) fn run_with_api(
             ApiServer::new(to_vmm, from_vmm, to_vmm_event_fd).run(
                 server,
                 process_time_reporter,
+                #[cfg(target_os = "linux")]
                 &api_seccomp_filter,
                 api_payload_limit,
             );
@@ -206,6 +210,7 @@ pub(crate) fn run_with_api(
     // Configure, build and start the microVM.
     let build_result = match config_json {
         Some(json) => super::build_microvm_from_json(
+            #[cfg(target_os = "linux")]
             seccomp_filters,
             &mut event_manager,
             json,
@@ -216,6 +221,7 @@ pub(crate) fn run_with_api(
         )
         .map_err(ApiServerError::BuildFromJson),
         None => PrebootApiController::build_microvm_from_requests(
+            #[cfg(target_os = "linux")]
             seccomp_filters,
             &mut event_manager,
             instance_info,

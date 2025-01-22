@@ -638,13 +638,14 @@ impl PerformanceMetrics {
         }
     }
 }
-
+#[cfg(target_os = "linux")]
 /// Metrics for the seccomp filtering.
 #[derive(Debug, Default, Serialize)]
 pub struct SeccompMetrics {
     /// Number of errors inside the seccomp filtering.
     pub num_faults: SharedStoreMetric,
 }
+#[cfg(target_os = "linux")]
 impl SeccompMetrics {
     /// Const default construction.
     pub const fn new() -> Self {
@@ -902,6 +903,7 @@ pub struct FirecrackerMetrics {
     pub patch_api_requests: PatchRequestsMetrics,
     /// Metrics related to API PUT requests.
     pub put_api_requests: PutRequestsMetrics,
+    #[cfg(target_os = "linux")]
     /// Metrics related to seccomp filtering.
     pub seccomp: SeccompMetrics,
     /// Metrics related to a vcpu's functioning.
@@ -937,6 +939,7 @@ impl FirecrackerMetrics {
             net_ser: NetMetricsSerializeProxy {},
             patch_api_requests: PatchRequestsMetrics::new(),
             put_api_requests: PutRequestsMetrics::new(),
+            #[cfg(target_os = "linux")]
             seccomp: SeccompMetrics::new(),
             vcpu: VcpuMetrics::new(),
             vmm: VmmMetrics::new(),

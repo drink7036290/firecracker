@@ -490,12 +490,14 @@ mod tests {
                     .default_value("instance")
                     .help("'id' info."),
             )
+            #[cfg(target_os = "linux")]
             .arg(
                 Argument::new("seccomp-filter")
                     .takes_value(true)
                     .help("'seccomp-filter' info.")
                     .forbids(vec!["no-seccomp"]),
             )
+            #[cfg(target_os = "linux")]
             .arg(
                 Argument::new("no-seccomp")
                     .help("'-no-seccomp' info.")
@@ -603,6 +605,7 @@ mod tests {
 
         arg_parser = ArgParser::new()
             .arg(Argument::new("id").takes_value(true).help("'id' info."))
+            #[cfg(target_os = "linux")]
             .arg(
                 Argument::new("seccomp-filter")
                     .takes_value(true)
@@ -855,14 +858,17 @@ mod tests {
             "bar",
             "--id",
             "foobar",
+            #[cfg(target_os = "linux")]
             "--seccomp-filter",
             "0",
+            #[cfg(target_os = "linux")]
             "--no-seccomp",
         ]
         .into_iter()
         .map(String::from)
         .collect::<Vec<String>>();
 
+        #[cfg(target_os = "linux")]
         assert_eq!(
             arguments.parse(&args),
             Err(UtilsArgParserError::ForbiddenArgument(
@@ -881,7 +887,9 @@ mod tests {
             "bar",
             "--id",
             "foobar",
+            #[cfg(target_os = "linux")]
             "--no-seccomp",
+            #[cfg(target_os = "linux")]
             "--seccomp-filter",
             "0",
         ]
@@ -889,6 +897,7 @@ mod tests {
         .map(String::from)
         .collect::<Vec<String>>();
 
+        #[cfg(target_os = "linux")]
         assert_eq!(
             arguments.parse(&args),
             Err(UtilsArgParserError::ForbiddenArgument(
@@ -940,6 +949,7 @@ mod tests {
             "bar",
             "--id",
             "foobar",
+            #[cfg(target_os = "linux")]
             "--seccomp-filter",
             "0",
             "--",

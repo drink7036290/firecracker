@@ -12,6 +12,7 @@ use vmm::resources::VmResources;
 use vmm::rpc_interface::{
     LoadSnapshotError, PrebootApiController, RuntimeApiController, VmmAction, VmmActionError,
 };
+#[cfg(target_os = "linux")]
 use vmm::seccomp::get_empty_filters;
 use vmm::snapshot::Snapshot;
 #[cfg(target_arch = "x86_64")]
@@ -37,12 +38,14 @@ fn test_build_and_boot_microvm() {
     {
         let resources: VmResources = MockVmResources::new().into();
         let mut event_manager = EventManager::new().unwrap();
+        #[cfg(target_os = "linux")]
         let empty_seccomp_filters = get_empty_filters();
 
         let vmm_ret = build_and_boot_microvm(
             &InstanceInfo::default(),
             &resources,
             &mut event_manager,
+            #[cfg(target_os = "linux")]
             &empty_seccomp_filters,
         );
         assert_eq!(format!("{:?}", vmm_ret.err()), "Some(MissingKernelConfig)");
@@ -242,10 +245,12 @@ fn verify_create_snapshot(is_diff: bool) -> (TempFile, TempFile) {
 
 fn verify_load_snapshot(snapshot_file: TempFile, memory_file: TempFile) {
     let mut event_manager = EventManager::new().unwrap();
+    #[cfg(target_os = "linux")]
     let empty_seccomp_filters = get_empty_filters();
     let mut vm_resources = VmResources::default();
 
     let mut preboot_api_controller = PrebootApiController::new(
+        #[cfg(target_os = "linux")]
         &empty_seccomp_filters,
         InstanceInfo::default(),
         &mut vm_resources,
@@ -323,10 +328,12 @@ fn verify_load_snap_disallowed_after_boot_resources(res: VmmAction, res_name: &s
     let (snapshot_file, memory_file) = verify_create_snapshot(false);
 
     let mut event_manager = EventManager::new().unwrap();
+    #[cfg(target_os = "linux")]
     let empty_seccomp_filters = get_empty_filters();
     let mut vm_resources = VmResources::default();
 
     let mut preboot_api_controller = PrebootApiController::new(
+        #[cfg(target_os = "linux")]
         &empty_seccomp_filters,
         InstanceInfo::default(),
         &mut vm_resources,

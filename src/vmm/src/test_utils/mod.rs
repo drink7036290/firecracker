@@ -10,6 +10,7 @@ use vmm_sys_util::tempdir::TempDir;
 
 use crate::builder::build_microvm_for_boot;
 use crate::resources::VmResources;
+#[cfg(target_os = "linux")]
 use crate::seccomp::get_empty_filters;
 use crate::test_utils::mock_resources::{MockBootSourceConfig, MockVmConfig, MockVmResources};
 use crate::vmm_config::boot_source::BootSourceConfig;
@@ -50,6 +51,7 @@ pub fn create_vmm(
     boot_microvm: bool,
 ) -> (Arc<Mutex<Vmm>>, EventManager) {
     let mut event_manager = EventManager::new().unwrap();
+    #[cfg(target_os = "linux")]
     let empty_seccomp_filters = get_empty_filters();
 
     let boot_source_cfg = MockBootSourceConfig::new().with_default_boot_args();
@@ -73,6 +75,7 @@ pub fn create_vmm(
         &InstanceInfo::default(),
         &resources,
         &mut event_manager,
+        #[cfg(target_os = "linux")]
         &empty_seccomp_filters,
     )
     .unwrap();

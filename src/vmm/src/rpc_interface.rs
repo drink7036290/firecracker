@@ -17,6 +17,7 @@ use crate::logger::{info, warn, LoggerConfig, *};
 use crate::mmds::data_store::{self, Mmds};
 use crate::persist::{CreateSnapshotError, RestoreFromSnapshotError, VmInfo};
 use crate::resources::VmmConfig;
+#[cfg(target_os = "linux")]
 use crate::seccomp::BpfThreadMap;
 use crate::vmm_config::balloon::{
     BalloonConfigError, BalloonDeviceConfig, BalloonStats, BalloonUpdateConfig,
@@ -234,6 +235,7 @@ trait MmdsRequestHandler {
 
 /// Enables pre-boot setup and instantiation of a Firecracker VMM.
 pub struct PrebootApiController<'a> {
+    #[cfg(target_os = "linux")]
     seccomp_filters: &'a BpfThreadMap,
     instance_info: InstanceInfo,
     vm_resources: &'a mut VmResources,
@@ -252,6 +254,7 @@ pub struct PrebootApiController<'a> {
 impl fmt::Debug for PrebootApiController<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PrebootApiController")
+            #[cfg(target_os = "linux")]
             .field("seccomp_filters", &self.seccomp_filters)
             .field("instance_info", &self.instance_info)
             .field("vm_resources", &self.vm_resources)
@@ -299,12 +302,14 @@ pub enum BuildMicrovmFromRequestsError {
 impl<'a> PrebootApiController<'a> {
     /// Constructor for the PrebootApiController.
     pub fn new(
+        #[cfg(target_os = "linux")]
         seccomp_filters: &'a BpfThreadMap,
         instance_info: InstanceInfo,
         vm_resources: &'a mut VmResources,
         event_manager: &'a mut EventManager,
     ) -> Self {
         Self {
+            #[cfg(target_os = "linux")]
             seccomp_filters,
             instance_info,
             vm_resources,
@@ -320,6 +325,7 @@ impl<'a> PrebootApiController<'a> {
     /// Returns a populated `VmResources` object and a running `Vmm` object.
     #[allow(clippy::too_many_arguments)]
     pub fn build_microvm_from_requests(
+        #[cfg(target_os = "linux")]
         seccomp_filters: &BpfThreadMap,
         event_manager: &mut EventManager,
         instance_info: InstanceInfo,
@@ -350,6 +356,7 @@ impl<'a> PrebootApiController<'a> {
         }
 
         let mut preboot_controller = PrebootApiController::new(
+            #[cfg(target_os = "linux")]
             seccomp_filters,
             instance_info,
             &mut vm_resources,
@@ -542,6 +549,7 @@ impl<'a> PrebootApiController<'a> {
             &self.instance_info,
             self.vm_resources,
             self.event_manager,
+            #[cfg(target_os = "linux")]
             self.seccomp_filters,
         )
         .map(|vmm| {
@@ -571,6 +579,7 @@ impl<'a> PrebootApiController<'a> {
         let vmm = restore_from_snapshot(
             &self.instance_info,
             self.event_manager,
+            #[cfg(target_os = "linux")]
             self.seccomp_filters,
             load_params,
             self.vm_resources,
@@ -859,6 +868,7 @@ mod tests {
     use crate::builder::tests::default_vmm;
     use crate::devices::virtio::block::CacheType;
     use crate::mmds::data_store::MmdsVersion;
+    #[cfg(target_os = "linux")]
     use crate::seccomp::BpfThreadMap;
     use crate::vmm_config::snapshot::{MemBackendConfig, MemBackendType};
     use crate::HTTP_MAX_PAYLOAD_SIZE;
@@ -866,17 +876,19 @@ mod tests {
     fn default_preboot<'a>(
         vm_resources: &'a mut VmResources,
         event_manager: &'a mut EventManager,
+        #[cfg(target_os = "linux")]
         seccomp_filters: &'a BpfThreadMap,
     ) -> PrebootApiController<'a> {
         let instance_info = InstanceInfo::default();
-        PrebootApiController::new(seccomp_filters, instance_info, vm_resources, event_manager)
+        PrebootApiController::new(#[cfg(target_os = "linux")] seccomp_filters, instance_info, vm_resources, event_manager)
     }
 
     fn preboot_request(request: VmmAction) -> Result<VmmData, VmmActionError> {
         let mut vm_resources = VmResources::default();
         let mut evmgr = EventManager::new().unwrap();
+        #[cfg(target_os = "linux")]
         let seccomp_filters = BpfThreadMap::new();
-        let mut preboot = default_preboot(&mut vm_resources, &mut evmgr, &seccomp_filters);
+        let mut preboot = default_preboot(&mut vm_resources, &mut evmgr, #[cfg(target_os = "linux")] &seccomp_filters);
         preboot.handle_preboot_request(request)
     }
 
@@ -890,8 +902,9 @@ mod tests {
             ..Default::default()
         };
         let mut evmgr = EventManager::new().unwrap();
+        #[cfg(target_os = "linux")]
         let seccomp_filters = BpfThreadMap::new();
-        let mut preboot = default_preboot(&mut vm_resources, &mut evmgr, &seccomp_filters);
+        let mut preboot = default_preboot(&mut vm_resources, &mut evmgr, #[cfg(target_os = "linux")] &seccomp_filters);
         preboot.handle_preboot_request(request)
     }
 

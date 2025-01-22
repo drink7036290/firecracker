@@ -1,6 +1,8 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#![cfg_attr(not(target_os = "linux"), allow(dead_code))]
+
 use std::path::Path;
 
 const ADVANCED_BINARY_FILTER_FILE_NAME: &str = "seccomp_filter.bpf";
@@ -8,6 +10,7 @@ const ADVANCED_BINARY_FILTER_FILE_NAME: &str = "seccomp_filter.bpf";
 const JSON_DIR: &str = "../../resources/seccomp";
 const SECCOMPILER_SRC_DIR: &str = "../seccompiler/src";
 
+#[cfg(target_os = "linux")]
 // This script is run on every modification in the target-specific JSON file in `resources/seccomp`.
 // It compiles the JSON seccomp policies into a serializable BPF format, using seccompiler-bin.
 // The generated binary code will get included in Firecracker's code, at compile-time.
@@ -42,4 +45,9 @@ fn main() {
     let out_path = format!("{}/{}", out_dir, ADVANCED_BINARY_FILTER_FILE_NAME);
     seccompiler::compile_bpf(&seccomp_json_path, &target_arch, &out_path, false)
         .expect("Cannot compile seccomp filters");
+}
+
+#[cfg(not(target_os = "linux"))]
+fn main() {
+    // On macOS or other platforms, this is a no-op
 }

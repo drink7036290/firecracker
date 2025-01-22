@@ -26,6 +26,7 @@ use crate::cpu_config::templates::{CpuConfiguration, GuestConfigError};
 #[cfg(feature = "gdb")]
 use crate::gdb::target::{get_raw_tid, GdbTargetError};
 use crate::logger::{IncMetric, METRICS};
+#[cfg(target_os = "linux")]
 use crate::seccomp::{BpfProgram, BpfProgramRef};
 use crate::utils::signal::{register_signal_handler, sigrtmin, Killable};
 use crate::utils::sm::StateMachine;
@@ -258,6 +259,7 @@ impl Vcpu {
     /// The handle can be used to control the remote vcpu.
     pub fn start_threaded(
         mut self,
+        #[cfg(target_os = "linux")]
         seccomp_filter: Arc<BpfProgram>,
         barrier: Arc<Barrier>,
     ) -> Result<VcpuHandle, StartThreadedError> {
@@ -266,12 +268,13 @@ impl Vcpu {
         let vcpu_thread = thread::Builder::new()
             .name(format!("fc_vcpu {}", self.kvm_vcpu.index))
             .spawn(move || {
+                #[cfg(target_os = "linux")]
                 let filter = &*seccomp_filter;
                 self.init_thread_local_data()
                     .expect("Cannot cleanly initialize vcpu TLS.");
                 // Synchronization to make sure thread local data is initialized.
                 barrier.wait();
-                self.run(filter);
+                self.run(#[cfg(target_os = "linux")] filter);
             })?;
 
         Ok(VcpuHandle::new(
@@ -286,7 +289,8 @@ impl Vcpu {
     /// Runs the vCPU in KVM context in a loop. Handles KVM_EXITs then goes back in.
     /// Note that the state of the VCPU and associated VM must be setup first for this to do
     /// anything useful.
-    pub fn run(&mut self, seccomp_filter: BpfProgramRef) {
+    pub fn run(&mut self, #[cfg(target_os = "linux")] seccomp_filter: BpfProgramRef) {
+        #[cfg(target_os = "linux")]
         // Load seccomp filters for this vCPU thread.
         // Execution panics if filters cannot be loaded, use --no-seccomp if skipping filters
         // altogether is the desired behaviour.
@@ -775,6 +779,7 @@ pub(crate) mod tests {
     use crate::builder::StartMicrovmError;
     use crate::devices::bus::DummyDevice;
     use crate::devices::BusDevice;
+    #[cfg(target_os = "linux")]
     use crate::seccomp::get_empty_filters;
     use crate::utils::signal::validate_signal_num;
     use crate::vstate::memory::{GuestAddress, GuestMemoryMmap};
@@ -1012,10 +1017,11 @@ pub(crate) mod tests {
             )
             .expect("failed to configure vcpu");
 
+        #[cfg(target_os = "linux")]
         let mut seccomp_filters = get_empty_filters();
         let barrier = Arc::new(Barrier::new(2));
         let vcpu_handle = vcpu
-            .start_threaded(seccomp_filters.remove("vcpu").unwrap(), barrier.clone())
+            .start_threaded(#[cfg(target_os = "linux")] seccomp_filters.remove("vcpu").unwrap(), barrier.clone())
             .expect("failed to start vcpu");
         // Wait for vCPUs to initialize their TLS before moving forward.
         barrier.wait();
