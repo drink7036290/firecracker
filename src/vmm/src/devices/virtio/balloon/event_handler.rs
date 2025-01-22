@@ -14,6 +14,7 @@ impl Balloon {
     const PROCESS_VIRTQ_INFLATE: u32 = 1;
     const PROCESS_VIRTQ_DEFLATE: u32 = 2;
     const PROCESS_VIRTQ_STATS: u32 = 3;
+    #[cfg(target_os = "linux")]
     const PROCESS_STATS_TIMER: u32 = 4;
 
     fn register_runtime_events(&self, ops: &mut EventOps) {
@@ -39,6 +40,7 @@ impl Balloon {
             )) {
                 error!("Failed to register stats queue event: {}", err);
             }
+            #[cfg(target_os = "linux")]
             if let Err(err) = ops.add(Events::with_data(
                 &self.stats_timer,
                 Self::PROCESS_STATS_TIMER,
@@ -100,6 +102,7 @@ impl MutEventSubscriber for Balloon {
                 Self::PROCESS_VIRTQ_STATS => self
                     .process_stats_queue_event()
                     .unwrap_or_else(report_balloon_event_fail),
+                #[cfg(target_os = "linux")]
                 Self::PROCESS_STATS_TIMER => self
                     .process_stats_timer_event()
                     .unwrap_or_else(report_balloon_event_fail),

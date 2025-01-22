@@ -26,10 +26,12 @@ serde = { version = "1.0.217", features = ["derive"] }
 serde_derive = "1.0.136"
 serde_json = "1.0.135"
 thiserror = "2.0.11"
-timerfd = "1.6.0"
 utils = { path = "../utils" }
 vmm = { path = "../vmm" }
 vmm-sys-util = { version = "0.12.1", features = ["with-serde"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+timerfd = "1.6.0"
 
 [dev-dependencies]
 cargo_toml = "0.21.0"
@@ -41,12 +43,16 @@ regex = { version = "1.11.1", default-features = false, features = [
 
 # Dev-Dependencies for uffd examples
 serde = { version = "1.0.217", features = ["derive"] }
-userfaultfd = { version = "0.8.1", optional = true }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+userfaultfd = "0.8.1"
 
 [build-dependencies]
-seccompiler = { path = "../seccompiler", optional = true }
 serde = { version = "1.0.217" }
 serde_json = "1.0.135"
+
+[target.'cfg(target_os = "linux")'.build-dependencies]
+seccompiler = { path = "../seccompiler" }
 
 [features]
 tracing = ["log-instrument", "utils/tracing", "vmm/tracing"]

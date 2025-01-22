@@ -233,6 +233,7 @@ pub enum VmmError {
     SeccompFilters(seccomp::InstallationError),
     /// Error writing to the serial console: {0}
     Serial(io::Error),
+    #[cfg(target_os = "linux")]
     /// Error creating timer fd: {0}
     TimerFd(io::Error),
     /// Error configuring the vcpu for boot: {0}

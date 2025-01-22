@@ -159,8 +159,9 @@ fn main_exec() -> Result<(), MainError> {
                     .takes_value(true)
                     .default_value(vmm::logger::DEFAULT_INSTANCE_ID)
                     .help("MicroVM unique identifier."),
-            )
-            #[cfg(target_os = "linux")]
+            );
+    #[cfg(target_os = "linux")]
+    arg_parser = arg_parser
             .arg(
                 Argument::new("seccomp-filter")
                     .takes_value(true)
@@ -170,7 +171,6 @@ fn main_exec() -> Result<(), MainError> {
                          filter. For advanced users.",
                     ),
             )
-            #[cfg(target_os = "linux")]
             .arg(
                 Argument::new("no-seccomp")
                     .takes_value(false)
@@ -179,7 +179,8 @@ fn main_exec() -> Result<(), MainError> {
                         "Optional parameter which allows starting and using a microVM without \
                          seccomp filtering. Not recommended.",
                     ),
-            )
+            );
+    arg_parser = arg_parser
             .arg(
                 Argument::new("start-time-us").takes_value(true).help(
                     "Process start time (wall clock, microseconds). This parameter is optional.",
@@ -460,7 +461,7 @@ fn main_exec() -> Result<(), MainError> {
 /// the default the jailer would set).
 ///
 /// We do this resizing because the kernel default is 64, with a reallocation happening whenever
-/// the tabel fills up. This was happening for some larger microVMs, and reallocating the
+/// the table fills up. This was happening for some larger microVMs, and reallocating the
 /// fdtable while a lot of file descriptors are active (due to being eventfds/timerfds registered
 /// to epoll) incurs a penalty of 30ms-70ms on the snapshot restore path.
 fn resize_fdtable() -> Result<(), ResizeFdTableError> {

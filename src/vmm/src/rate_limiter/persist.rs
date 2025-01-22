@@ -82,6 +82,7 @@ impl Persist<'_> for RateLimiter {
             } else {
                 None
             },
+            #[cfg(target_os = "linux")]
             timer_fd: TimerFd::new_custom(ClockId::Monotonic, true, true)?,
             timer_active: false,
         };

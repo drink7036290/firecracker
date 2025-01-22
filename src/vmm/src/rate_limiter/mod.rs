@@ -5,6 +5,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::time::{Duration, Instant};
 use std::{fmt, io};
 
+#[cfg(target_os = "linux")]
 use timerfd::{ClockId, SetTimeFlags, TimerFd, TimerState};
 
 pub mod persist;
@@ -301,6 +302,7 @@ pub struct RateLimiter {
     bandwidth: Option<TokenBucket>,
     ops: Option<TokenBucket>,
 
+    #[cfg(target_os = "linux")]
     timer_fd: TimerFd,
     // Internal flag that quickly determines timer state.
     timer_active: bool,
@@ -372,6 +374,7 @@ impl RateLimiter {
         Ok(RateLimiter {
             bandwidth: bytes_token_bucket,
             ops: ops_token_bucket,
+            #[cfg(target_os = "linux")]
             timer_fd,
             timer_active: false,
         })

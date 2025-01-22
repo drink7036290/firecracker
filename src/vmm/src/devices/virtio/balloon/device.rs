@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use log::error;
 use serde::Serialize;
+#[cfg(target_os = "linux")]
 use timerfd::{ClockId, SetTimeFlags, TimerFd, TimerState};
 use vmm_sys_util::eventfd::EventFd;
 
@@ -166,6 +167,7 @@ pub struct Balloon {
     // Implementation specific fields.
     pub(crate) restored: bool,
     pub(crate) stats_polling_interval_s: u16,
+    #[cfg(target_os = "linux")]
     pub(crate) stats_timer: TimerFd,
     // The index of the previous stats descriptor is saved because
     // it is acknowledged after the stats queue is processed.
@@ -229,7 +231,7 @@ impl Balloon {
         if stats_polling_interval_s == 0 {
             let _ = queues.remove(STATS_INDEX);
         }
-
+        #[cfg(target_os = "linux")]
         let stats_timer =
             TimerFd::new_custom(ClockId::Monotonic, true, true).map_err(BalloonError::Timer)?;
 
@@ -247,6 +249,7 @@ impl Balloon {
             activate_evt: EventFd::new(libc::EFD_NONBLOCK).map_err(BalloonError::EventFd)?,
             restored,
             stats_polling_interval_s,
+            #[cfg(target_os = "linux")]
             stats_timer,
             stats_desc_index: None,
             latest_stats: BalloonStats::default(),
@@ -275,6 +278,7 @@ impl Balloon {
         self.process_stats_queue()
     }
 
+    #[cfg(target_os = "linux")]
     pub(crate) fn process_stats_timer_event(&mut self) -> Result<(), BalloonError> {
         self.stats_timer.read();
         self.trigger_stats_update()
@@ -482,10 +486,12 @@ impl Balloon {
         self.trigger_stats_update()?;
 
         self.stats_polling_interval_s = interval_s;
+        #[cfg(target_os = "linux")]
         self.update_timer_state();
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     pub fn update_timer_state(&mut self) {
         let timer_state = TimerState::Periodic {
             current: Duration::from_secs(u64::from(self.stats_polling_interval_s)),
@@ -614,6 +620,7 @@ impl VirtioDevice for Balloon {
             return Err(ActivateError::EventFd);
         }
 
+        #[cfg(target_os = "linux")]
         if self.stats_enabled() {
             self.update_timer_state();
         }
@@ -1066,6 +1073,7 @@ pub(crate) mod tests {
                 // Trigger the timer event, which consumes the stats
                 // descriptor index and signals the used queue.
                 assert!(balloon.stats_desc_index.is_some());
+                #[cfg(target_os = "linux")]
                 balloon.process_stats_timer_event().unwrap();
                 assert!(balloon.stats_desc_index.is_none());
                 assert!(balloon.irq_trigger.has_pending_irq(IrqType::Vring));

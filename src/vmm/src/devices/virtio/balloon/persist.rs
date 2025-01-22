@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "linux")]
 use timerfd::{SetTimeFlags, TimerState};
 
 use super::*;
@@ -155,11 +156,13 @@ impl Persist<'_> for Balloon {
                 // Restore the stats descriptor.
                 balloon.set_stats_desc_index(state.stats_desc_index);
 
+                #[cfg(target_os = "linux")]
                 // Restart timer if needed.
                 let timer_state = TimerState::Periodic {
                     current: Duration::from_secs(u64::from(state.stats_polling_interval_s)),
                     interval: Duration::from_secs(u64::from(state.stats_polling_interval_s)),
                 };
+                #[cfg(target_os = "linux")]
                 balloon
                     .stats_timer
                     .set_state(timer_state, SetTimeFlags::Default);

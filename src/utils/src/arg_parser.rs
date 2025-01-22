@@ -465,7 +465,7 @@ mod tests {
     use crate::arg_parser::Value;
 
     fn build_arg_parser() -> ArgParser<'static> {
-        ArgParser::new()
+        let mut parser = ArgParser::new()
             .arg(
                 Argument::new("exec-file")
                     .required(true)
@@ -489,20 +489,23 @@ mod tests {
                     .takes_value(true)
                     .default_value("instance")
                     .help("'id' info."),
-            )
-            #[cfg(target_os = "linux")]
+            );
+
+        #[cfg(target_os = "linux")]
+        parser = parser
             .arg(
                 Argument::new("seccomp-filter")
                     .takes_value(true)
                     .help("'seccomp-filter' info.")
                     .forbids(vec!["no-seccomp"]),
             )
-            #[cfg(target_os = "linux")]
             .arg(
                 Argument::new("no-seccomp")
                     .help("'-no-seccomp' info.")
                     .forbids(vec!["seccomp-filter"]),
-            )
+            );
+
+        parser
             .arg(
                 Argument::new("config-file")
                     .takes_value(true)
@@ -604,13 +607,15 @@ mod tests {
         );
 
         arg_parser = ArgParser::new()
-            .arg(Argument::new("id").takes_value(true).help("'id' info."))
-            #[cfg(target_os = "linux")]
+            .arg(Argument::new("id").takes_value(true).help("'id' info."));
+        #[cfg(target_os = "linux")]
+        arg_parser = arg_parser
             .arg(
                 Argument::new("seccomp-filter")
                     .takes_value(true)
                     .help("'seccomp-filter' info."),
-            )
+            );
+        arg_parser = arg_parser
             .arg(
                 Argument::new("config-file")
                     .takes_value(true)

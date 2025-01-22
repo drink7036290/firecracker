@@ -5,6 +5,7 @@ use std::os::unix::io::AsRawFd;
 use std::time::Duration;
 
 use event_manager::{EventOps, Events, MutEventSubscriber};
+#[cfg(target_os = "linux")]
 use timerfd::{ClockId, SetTimeFlags, TimerFd, TimerState};
 use vmm::logger::{error, warn, IncMetric, METRICS};
 use vmm_sys_util::epoll::EventSet;
@@ -15,6 +16,7 @@ pub(crate) const WRITE_METRICS_PERIOD_MS: u64 = 60000;
 /// Object to drive periodic reporting of metrics.
 #[derive(Debug)]
 pub(crate) struct PeriodicMetrics {
+    #[cfg(target_os = "linux")]
     write_metrics_event_fd: TimerFd,
     #[cfg(test)]
     flush_counter: u64,
@@ -23,9 +25,11 @@ pub(crate) struct PeriodicMetrics {
 impl PeriodicMetrics {
     /// PeriodicMetrics constructor. Can panic on `TimerFd` creation failure.
     pub fn new() -> Self {
+        #[cfg(target_os = "linux")]
         let write_metrics_event_fd = TimerFd::new_custom(ClockId::Monotonic, true, true)
             .expect("Cannot create the metrics timer fd.");
         PeriodicMetrics {
+            #[cfg(target_os = "linux")]
             write_metrics_event_fd,
             #[cfg(test)]
             flush_counter: 0,
