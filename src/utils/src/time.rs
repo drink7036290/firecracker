@@ -69,7 +69,7 @@ impl LocalTime {
             tm_yday: 0,
             tm_isdst: 0,
             tm_gmtoff: 0,
-            tm_zone: std::ptr::null(),
+            tm_zone: std::ptr::null_mut(),
         };
 
         // SAFETY: Safe because the parameters are valid.

@@ -8,7 +8,7 @@
 ###################
 
 # Naming things is hard
-ARG0=${BASH_SOURCE[-1]}
+ARG0="${BASH_SOURCE[${#BASH_SOURCE[@]}-1]}"
 MY_NAME="Firecracker $(basename "$ARG0")"
 
 # Send a decorated message to stderr, followed by a new line

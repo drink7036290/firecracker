@@ -3,6 +3,7 @@
 
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
+#[cfg(target_os = "linux")]
 use std::path::Path;
 
 const ADVANCED_BINARY_FILTER_FILE_NAME: &str = "seccomp_filter.bpf";

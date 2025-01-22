@@ -166,7 +166,7 @@ retry_cmd() {
     {
         $command
     } || {
-        # Command failed, substract one from retry_cnt
+        # Command failed, subtract one from retry_cnt
         retry_cnt=$((retry_cnt - 1))
 
         # If retry_cnt is larger than 0, sleep and call again
@@ -304,10 +304,9 @@ run_devctr() {
         --rm \
         --volume /dev:/dev \
         --volume "$FC_ROOT_DIR:$CTR_FC_ROOT_DIR:z" \
-        --volume "$FC_ROOT_DIR/build/cargo_registry:/usr/local/rust/registry:z" \
-        --volume "$FC_ROOT_DIR/build/cargo_git_registry:/usr/local/rust/git:z" \
+        --volume "$CARGO_REGISTRY_DIR:/usr/local/rust/registry:z" \
+        --volume "$CARGO_GIT_REGISTRY_DIR:/usr/local/rust/git:z" \
         --tmpfs /srv:exec,dev,size=32G \
-        -v /boot:/boot \
         --env PYTHONDONTWRITEBYTECODE=1 \
         "$DEVCTR_IMAGE" "${ctr_args[@]}"
 }
