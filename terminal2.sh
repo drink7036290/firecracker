@@ -40,7 +40,8 @@ sudo curl -X PUT --unix-socket "${API_SOCKET}" \
     }" \
     "http://localhost/logger"
 
-KERNEL="./$(ls vmlinux* | tail -1)"
+#KERNEL="./$(ls vmlinux* | tail -1)"
+KERNEL="./vmlinux-6.1.102"
 KERNEL_BOOT_ARGS="console=ttyS0 reboot=k panic=1 pci=off"
 
 ARCH=$(uname -m)
