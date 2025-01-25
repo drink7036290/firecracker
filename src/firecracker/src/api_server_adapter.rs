@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
-
+#[cfg(target_os = "linux")]
 use event_manager::{EventOps, Events, MutEventSubscriber, SubscriberOps};
 use vmm::logger::{error, warn, ProcessTimeReporter};
 use vmm::resources::VmResources;
@@ -18,7 +18,9 @@ use vmm::rpc_interface::{
 use vmm::seccomp::BpfThreadMap;
 use vmm::vmm_config::instance_info::InstanceInfo;
 use vmm::{EventManager, FcExitCode, Vmm};
+#[cfg(target_os = "linux")]
 use vmm_sys_util::epoll::EventSet;
+#[cfg(target_os = "linux")]
 use vmm_sys_util::eventfd::EventFd;
 
 use super::api_server::{ApiServer, HttpServer, ServerError};
@@ -37,6 +39,7 @@ pub enum ApiServerError {
     BuildFromJson(crate::BuildFromJsonError),
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug)]
 struct ApiServerAdapter {
     api_event_fd: EventFd,
@@ -44,7 +47,7 @@ struct ApiServerAdapter {
     to_api: Sender<ApiResponse>,
     controller: RuntimeApiController,
 }
-
+#[cfg(target_os = "linux")]
 impl ApiServerAdapter {
     /// Runs the vmm to completion, while any arising control events are deferred
     /// to a `RuntimeApiController`.
@@ -86,6 +89,7 @@ impl ApiServerAdapter {
             .expect("one-shot channel closed");
     }
 }
+#[cfg(target_os = "linux")]
 impl MutEventSubscriber for ApiServerAdapter {
     /// Handle a read event (EPOLLIN).
     fn process(&mut self, event: Events, _: &mut EventOps) {
@@ -149,10 +153,12 @@ pub(crate) fn run_with_api(
     mmds_size_limit: usize,
     metadata_json: Option<&str>,
 ) -> Result<(), ApiServerError> {
+    #[cfg(target_os = "linux")]
     // FD to notify of API events. This is a blocking eventfd by design.
     // It is used in the config/pre-boot loop which is a simple blocking loop
     // which only consumes API events.
     let api_event_fd = EventFd::new(libc::EFD_SEMAPHORE).expect("Cannot create API Eventfd.");
+    #[cfg(target_os = "linux")]
     // FD used to signal API thread to stop/shutdown.
     let api_kill_switch = EventFd::new(libc::EFD_NONBLOCK).expect("Cannot create API kill switch.");
 

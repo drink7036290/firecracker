@@ -13,18 +13,27 @@ use kvm_bindings::{
     kvm_clock_data, kvm_irqchip, kvm_pit_config, kvm_pit_state2, KVM_CLOCK_TSC_STABLE,
     KVM_IRQCHIP_IOAPIC, KVM_IRQCHIP_PIC_MASTER, KVM_IRQCHIP_PIC_SLAVE, KVM_PIT_SPEAKER_DUMMY,
 };
+#[cfg(target_os = "linux")]
 use kvm_bindings::{kvm_userspace_memory_region, KVM_MEM_LOG_DIRTY_PAGES};
 // use kvm_ioctls::{Kvm, VmFd};
+#[cfg(target_os = "linux")]
 use kvm_ioctls::VmFd;
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "macos")]
+use virt_fwk::VirtualMachineConfiguration;
+
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 use crate::arch::aarch64::gic::GICDevice;
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 use crate::arch::aarch64::gic::GicState;
 #[cfg(target_arch = "x86_64")]
 use crate::utils::u64_to_usize;
+#[cfg(target_os = "linux")]
 use crate::vstate::kvm::Kvm;
+#[cfg(target_os = "linux")]
 use crate::vstate::memory::{Address, GuestMemory, GuestMemoryMmap, GuestMemoryRegion};
 
 /// Errors associated with the wrappers over KVM ioctls.
@@ -32,11 +41,14 @@ use crate::vstate::memory::{Address, GuestMemory, GuestMemoryMmap, GuestMemoryRe
 #[rustfmt::skip]
 #[derive(Debug, PartialEq, Eq, thiserror::Error, displaydoc::Display)]
 pub enum VmError {
+    #[cfg(target_os = "linux")]
     /// Cannot set the memory regions: {0}
     SetUserMemoryRegion(kvm_ioctls::Error),
+    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     /// Error creating the global interrupt controller: {0}
     VmCreateGIC(crate::arch::aarch64::gic::GicError),
+    #[cfg(target_os = "linux")]
     /// Cannot open the VM file descriptor: {0}
     VmFd(kvm_ioctls::Error),
     #[cfg(target_arch = "x86_64")]
@@ -57,14 +69,20 @@ pub enum VmError {
     #[cfg(target_arch = "x86_64")]
     /// Failed to set KVM vm irqchip: {0}
     VmSetIrqChip(kvm_ioctls::Error),
+    #[cfg(target_os = "linux")]
     /// Cannot configure the microvm: {0}
     VmSetup(kvm_ioctls::Error),
+    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     /// Failed to save the VM's GIC state: {0}
     SaveGic(crate::arch::aarch64::gic::GicError),
+    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     /// Failed to restore the VM's GIC state: {0}
     RestoreGic(crate::arch::aarch64::gic::GicError),
+    #[cfg(target_os = "macos")]
+    /// Failed to create the VM: {0}
+    CreateVm(virt_fwk::Error),
 }
 
 /// Error type for [`Vm::restore_state`]
@@ -86,6 +104,7 @@ pub enum RestoreStateError {
     VmError(VmError),
 }
 
+#[cfg(target_os = "linux")]
 /// Error type for [`Vm::restore_state`]
 #[cfg(target_arch = "aarch64")]
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
@@ -96,6 +115,7 @@ pub enum RestoreStateError {
     VmError(VmError),
 }
 
+#[cfg(target_os = "linux")]
 /// A wrapper around creating and using a VM.
 #[derive(Debug)]
 pub struct Vm {
@@ -106,9 +126,16 @@ pub struct Vm {
     #[cfg(target_arch = "aarch64")]
     irqchip_handle: Option<GICDevice>,
 }
-
+/*
+#[cfg(target_os = "macos")]
+#[derive(Debug)]
+pub struct Vm {
+    config: VirtualMachineConfiguration,
+}
+ */
 /// Contains Vm functions that are usable across CPU architectures
 impl Vm {
+    #[cfg(target_os = "linux")]
     /// Create a new `Vm` struct.
     pub fn new(kvm: &Kvm) -> Result<Self, VmError> {
         // Create fd for interacting with kvm-vm specific functions.
@@ -128,6 +155,13 @@ impl Vm {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    /// Create a new `Vm` struct.
+    pub fn new() -> Result<Self, VmError> {
+        Ok(VirtualMachineConfiguration::new(boot_loader, *cpu_count, *memory_size))
+    }
+
+    #[cfg(target_os = "linux")]
     /// Initializes the guest memory.
     pub fn memory_init(
         &self,
@@ -143,6 +177,7 @@ impl Vm {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     pub(crate) fn set_kvm_memory_regions(
         &self,
         guest_mem: &GuestMemoryMmap,
@@ -172,12 +207,14 @@ impl Vm {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     /// Gets a reference to the kvm file descriptor owned by this VM.
     pub fn fd(&self) -> &VmFd {
         &self.fd
     }
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 impl Vm {
     /// Creates the GIC (Global Interrupt Controller).
@@ -221,6 +258,7 @@ impl Vm {
     }
 }
 
+#[cfg(target_os = "linux")]
 /// Structure holding an general specific VM state.
 #[cfg(target_arch = "aarch64")]
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -340,6 +378,7 @@ impl fmt::Debug for VmState {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

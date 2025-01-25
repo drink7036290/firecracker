@@ -7,11 +7,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::cpu_config::templates::{CpuTemplateType, CustomCpuTemplate, StaticCpuTemplate};
 
 /// The default memory size of the VM, in MiB.
-pub const DEFAULT_MEM_SIZE_MIB: usize = 128;
+pub const DEFAULT_MEM_SIZE_MIB: usize = 512;
 /// Firecracker aims to support small scale workloads only, so limit the maximum
 /// vCPUs supported.
 pub const MAX_SUPPORTED_VCPUS: u8 = 32;
 
+#[cfg(target_os = "linux")]
 /// Errors associated with configuring the microVM.
 #[rustfmt::skip]
 #[derive(Debug, thiserror::Error, displaydoc::Display, PartialEq, Eq)]
@@ -35,6 +36,16 @@ pub enum MachineConfigError {
     InitrdAndHugePages,
 }
 
+#[cfg(target_os = "macos")]
+/// Errors associated with configuring the microVM.
+#[rustfmt::skip]
+#[derive(Debug, thiserror::Error, displaydoc::Display, PartialEq, Eq)]
+pub enum MachineConfigError {
+    /// The memory size (MiB) is either 0, or not a multiple of the configured page size.
+    InvalidMemorySize,
+}
+
+#[cfg(target_os = "linux")]
 /// Describes the possible (huge)page configurations for a microVM's memory.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HugePageConfig {
@@ -46,6 +57,7 @@ pub enum HugePageConfig {
     Hugetlbfs2M,
 }
 
+#[cfg(target_os = "linux")]
 impl HugePageConfig {
     /// Checks whether the given memory size (in MiB) is valid for this [`HugePageConfig`], e.g.
     /// whether it is a multiple of the page size
@@ -82,6 +94,7 @@ impl HugePageConfig {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl From<HugePageConfig> for Option<memfd::HugetlbSize> {
     fn from(value: HugePageConfig) -> Self {
         match value {
@@ -91,6 +104,7 @@ impl From<HugePageConfig> for Option<memfd::HugetlbSize> {
     }
 }
 
+#[cfg(target_os = "linux")]
 /// Struct used in PUT `/machine-config` API call.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -123,10 +137,22 @@ pub struct MachineConfig {
     pub gdb_socket_path: Option<String>,
 }
 
+#[cfg(target_os = "macos")]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MachineConfig {
+    /// Number of vcpu to start.
+    pub vcpu_count: u8,
+    /// The memory size in MiB.
+    pub mem_size_mib: usize,
+}
+
+#[cfg(target_os = "linux")]
 fn is_none_or_custom_template(template: &Option<CpuTemplateType>) -> bool {
     matches!(template, None | Some(CpuTemplateType::Custom(_)))
 }
 
+#[cfg(target_os = "linux")]
 fn deserialize_static_template<'de, D>(deserializer: D) -> Result<Option<CpuTemplateType>, D::Error>
 where
     D: Deserializer<'de>,
@@ -135,6 +161,7 @@ where
         .map(|maybe_template| maybe_template.map(CpuTemplateType::Static))
 }
 
+#[cfg(target_os = "linux")]
 fn serialize_static_template<S>(
     template: &Option<CpuTemplateType>,
     serializer: S,
@@ -150,6 +177,7 @@ where
     template.serialize(serializer)
 }
 
+#[cfg(target_os = "linux")]
 impl Default for MachineConfig {
     fn default() -> Self {
         Self {
@@ -165,6 +193,17 @@ impl Default for MachineConfig {
     }
 }
 
+#[cfg(target_os = "macos")]
+impl Default for MachineConfig {
+    fn default() -> Self {
+        Self {
+            vcpu_count: 1,
+            mem_size_mib: DEFAULT_MEM_SIZE_MIB,
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
 /// Struct used in PATCH `/machine-config` API call.
 /// Used to update `MachineConfig` in `VmResources`.
 /// This struct mirrors all the fields in `MachineConfig`.
@@ -198,6 +237,7 @@ pub struct MachineConfigUpdate {
     pub gdb_socket_path: Option<String>,
 }
 
+#[cfg(target_os = "linux")]
 impl MachineConfigUpdate {
     /// Checks if the update request contains any data.
     /// Returns `true` if all fields are set to `None` which means that there is nothing
@@ -207,6 +247,7 @@ impl MachineConfigUpdate {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl From<MachineConfig> for MachineConfigUpdate {
     fn from(cfg: MachineConfig) -> Self {
         MachineConfigUpdate {
@@ -222,8 +263,9 @@ impl From<MachineConfig> for MachineConfigUpdate {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl MachineConfig {
-    /// Sets cpu tempalte field to `CpuTemplateType::Custom(cpu_template)`.
+    /// Sets cpu template field to `CpuTemplateType::Custom(cpu_template)`.
     pub fn set_custom_cpu_template(&mut self, cpu_template: CustomCpuTemplate) {
         self.cpu_template = Some(CpuTemplateType::Custom(cpu_template));
     }
@@ -289,6 +331,7 @@ impl MachineConfig {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 mod tests {
     use crate::cpu_config::templates::{CpuTemplateType, CustomCpuTemplate, StaticCpuTemplate};

@@ -12,6 +12,7 @@
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![allow(clippy::blanket_clippy_restriction_lints)]
 
+#[cfg(target_os = "linux")]
 /// Implements platform specific functionality.
 /// Supported platforms: x86_64 and aarch64.
 pub mod arch;
@@ -25,6 +26,7 @@ pub mod arch;
 /// Requires at least kernel version 5.10.51.
 /// For more information on io_uring, refer to the man pages.
 /// [This pdf](https://kernel.dk/io_uring.pdf) is also very useful, though outdated at times.
+#[cfg(target_os = "linux")]
 pub mod io_uring;
 
 /// # Rate Limiter
@@ -67,48 +69,65 @@ pub mod io_uring;
 /// It is meant to be used in an external event loop and thus implements the `AsRawFd`
 /// trait and provides an *event-handler* as part of its API. This *event-handler*
 /// needs to be called by the user on every event on the rate limiter's `AsRawFd` FD.
+#[cfg(target_os = "linux")]
 pub mod rate_limiter;
 
 /// Module for handling ACPI tables.
 /// Currently, we only use ACPI on x86 microVMs.
 #[cfg(target_arch = "x86_64")]
 pub mod acpi;
+#[cfg(target_os = "linux")]
 /// Handles setup and initialization a `Vmm` object.
 pub mod builder;
+#[cfg(target_os = "linux")]
 /// Types for guest configuration.
 pub mod cpu_config;
+#[cfg(target_os = "linux")]
 pub(crate) mod device_manager;
+
 /// Emulates virtual and hardware devices.
 #[allow(missing_docs)]
 pub mod devices;
+#[cfg(target_os = "linux")]
 /// minimalist HTTP/TCP/IPv4 stack named DUMBO
 pub mod dumbo;
+#[cfg(target_os = "linux")]
 /// Support for GDB debugging the guest
 #[cfg(feature = "gdb")]
 pub mod gdb;
+#[cfg(target_os = "linux")]
 /// Logger
 pub mod logger;
+#[cfg(target_os = "linux")]
 /// microVM Metadata Service MMDS
 pub mod mmds;
+#[cfg(target_os = "linux")]
 /// Save/restore utilities.
 pub mod persist;
+#[cfg(target_os = "linux")]
 /// Resource store for configured microVM resources.
 pub mod resources;
+#[cfg(target_os = "linux")]
 /// microVM RPC API adapters.
 pub mod rpc_interface;
 #[cfg(target_os = "linux")]
 /// Seccomp filter utilities.
 pub mod seccomp;
+#[cfg(target_os = "linux")]
 /// Signal handling utilities.
 pub mod signal_handler;
+#[cfg(target_os = "linux")]
 /// Serialization and deserialization facilities
 pub mod snapshot;
+#[cfg(target_os = "linux")]
 /// Utility functions for integration and benchmark testing
 pub mod test_utils;
+#[cfg(target_os = "linux")]
 /// Utility functions and struct
 pub mod utils;
 /// Wrappers over structures used to configure the VMM.
 pub mod vmm_config;
+
 /// Module with virtual state structs.
 pub mod vstate;
 
@@ -119,45 +138,69 @@ use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{Arc, Barrier, Mutex};
 use std::time::Duration;
 
+#[cfg(target_os = "linux")]
 use device_manager::acpi::ACPIDeviceManager;
+#[cfg(target_os = "linux")]
 use device_manager::resources::ResourceAllocator;
+#[cfg(target_os = "linux")]
 use devices::acpi::vmgenid::VmGenIdError;
+#[cfg(target_os = "linux")]
 use event_manager::{EventManager as BaseEventManager, EventOps, Events, MutEventSubscriber};
 #[cfg(target_os = "linux")]
 use seccomp::BpfProgram;
 #[cfg(target_os = "linux")]
 use userfaultfd::Uffd;
+#[cfg(target_os = "linux")]
 use vmm_sys_util::epoll::EventSet;
+#[cfg(target_os = "linux")]
 use vmm_sys_util::eventfd::EventFd;
+#[cfg(target_os = "linux")]
 use vmm_sys_util::terminal::Terminal;
+#[cfg(target_os = "linux")]
 use vstate::kvm::Kvm;
+#[cfg(target_os = "linux")]
 use vstate::vcpu::{self, KvmVcpuConfigureError, StartThreadedError, VcpuSendEventError};
 
 use crate::arch::DeviceType;
+#[cfg(target_os = "linux")]
 use crate::cpu_config::templates::CpuConfiguration;
 #[cfg(target_arch = "x86_64")]
 use crate::device_manager::legacy::PortIODeviceManager;
+#[cfg(target_os = "linux")]
 use crate::device_manager::mmio::MMIODeviceManager;
+#[cfg(target_os = "linux")]
 use crate::devices::legacy::{IER_RDA_BIT, IER_RDA_OFFSET};
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::balloon::{
     Balloon, BalloonConfig, BalloonError, BalloonStats, BALLOON_DEV_ID,
 };
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::block::device::Block;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::net::Net;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::{TYPE_BALLOON, TYPE_BLOCK, TYPE_NET};
+#[cfg(target_os = "linux")]
 use crate::logger::{error, info, warn, MetricsError, METRICS};
+#[cfg(target_os = "linux")]
 use crate::persist::{MicrovmState, MicrovmStateError, VmInfo};
+#[cfg(target_os = "linux")]
 use crate::rate_limiter::BucketUpdate;
+#[cfg(target_os = "linux")]
 use crate::snapshot::Persist;
 use crate::utils::u64_to_usize;
 use crate::vmm_config::instance_info::{InstanceInfo, VmState};
+#[cfg(target_os = "linux")]
 use crate::vstate::memory::{
     GuestMemory, GuestMemoryExtension, GuestMemoryMmap, GuestMemoryRegion,
 };
+#[cfg(target_os = "linux")]
 use crate::vstate::vcpu::VcpuState;
+#[cfg(target_os = "linux")]
 pub use crate::vstate::vcpu::{Vcpu, VcpuConfig, VcpuEvent, VcpuHandle, VcpuResponse};
 pub use crate::vstate::vm::Vm;
 
+#[cfg(target_os = "linux")]
 /// Shorthand type for the EventManager flavour used by Firecracker.
 pub type EventManager = BaseEventManager<Arc<Mutex<dyn MutEventSubscriber>>>;
 
@@ -211,12 +254,16 @@ pub enum VmmError {
     #[cfg(target_arch = "aarch64")]
     /// Invalid command line error.
     Cmdline,
+    #[cfg(target_os = "linux")]
     /// Device manager error: {0}
     DeviceManager(device_manager::mmio::MmioError),
+    #[cfg(target_os = "linux")]
     /// Error getting the KVM dirty bitmap. {0}
     DirtyBitmap(kvm_ioctls::Error),
+    #[cfg(target_os = "linux")]
     /// Event fd error: {0}
     EventFd(io::Error),
+    #[cfg(target_os = "linux")]
     /// I8042 error: {0}
     I8042Error(devices::legacy::I8042DeviceError),
     /// Cannot access kernel file: {0}
@@ -224,8 +271,10 @@ pub enum VmmError {
     #[cfg(target_arch = "x86_64")]
     /// Cannot add devices to the legacy I/O Bus. {0}
     LegacyIOBus(device_manager::legacy::LegacyDeviceError),
+    #[cfg(target_os = "linux")]
     /// Metrics error: {0}
     Metrics(MetricsError),
+    #[cfg(target_os = "linux")]
     /// Cannot add a device to the MMIO Bus. {0}
     RegisterMMIODevice(device_manager::mmio::MmioError),
     #[cfg(target_os = "linux")]
@@ -236,14 +285,19 @@ pub enum VmmError {
     #[cfg(target_os = "linux")]
     /// Error creating timer fd: {0}
     TimerFd(io::Error),
+    #[cfg(target_os = "linux")]
     /// Error configuring the vcpu for boot: {0}
     VcpuConfigure(KvmVcpuConfigureError),
+    #[cfg(target_os = "linux")]
     /// Error creating the vcpu: {0}
     VcpuCreate(vstate::vcpu::VcpuError),
+    #[cfg(target_os = "linux")]
     /// Cannot send event to vCPU. {0}
     VcpuEvent(vstate::vcpu::VcpuError),
+    #[cfg(target_os = "linux")]
     /// Cannot create a vCPU handle. {0}
     VcpuHandle(vstate::vcpu::VcpuError),
+    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     /// Error initializing the vcpu: {0}
     VcpuInit(vstate::vcpu::KvmVcpuError),
@@ -261,6 +315,7 @@ pub enum VmmError {
     VcpuSpawn(io::Error),
     /// Vm error: {0}
     Vm(vstate::vm::VmError),
+    #[cfg(target_os = "linux")]
     /// Kvm error: {0}
     Kvm(vstate::kvm::KvmError),
     /// Error thrown by observer object on Vmm initialization: {0}
@@ -271,19 +326,23 @@ pub enum VmmError {
     VMGenID(#[from] VmGenIdError),
 }
 
+#[cfg(target_os = "linux")]
 /// Shorthand type for KVM dirty page bitmap.
 pub type DirtyBitmap = HashMap<usize, Vec<u64>>;
 
+#[cfg(target_os = "linux")]
 /// Returns the size of guest memory, in MiB.
 pub(crate) fn mem_size_mib(guest_memory: &GuestMemoryMmap) -> u64 {
     guest_memory.iter().map(|region| region.len()).sum::<u64>() >> 20
 }
 
+#[cfg(target_os = "linux")]
 // Error type for [`Vmm::emulate_serial_init`].
 /// Emulate serial init error: {0}
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 pub struct EmulateSerialInitError(#[from] std::io::Error);
 
+#[cfg(target_os = "linux")]
 /// Error type for [`Vmm::start_vcpus`].
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 pub enum StartVcpusError {
@@ -293,6 +352,7 @@ pub enum StartVcpusError {
     VcpuHandle(#[from] StartThreadedError),
 }
 
+#[cfg(target_os = "linux")]
 /// Error type for [`Vmm::dump_cpu_config()`]
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 pub enum DumpCpuConfigError {
@@ -306,6 +366,132 @@ pub enum DumpCpuConfigError {
     NotAllowed(String),
 }
 
+use std::io::{stdin, stdout};
+use virt_fwk::{
+    VirtualMachine,
+    VirtualMachineConfiguration,
+    LinuxBootLoader,
+    DiskImageStorageDeviceAttachment,
+    FileHandleSerialPortAttachment,
+    VirtioConsoleDeviceSerialPortConfiguration,
+};
+
+#[derive(Debug)]
+pub enum HypervisorError {
+    Unsupported,
+    InvalidConfiguration,
+}
+
+pub struct AvfBackend {
+    vm: VirtualMachine,
+}
+
+impl AvfBackend {
+    pub fn new(
+        kernel_path: &str,
+        command_line: &str,
+        rootfs_path: &str,
+        cpu_count: u8,
+        memory_size: u64) -> Result<Self, HypervisorError> {
+
+        if !VirtualMachine::supported() {
+            println!("Apple Virtualization Framework is not supported on this system.");
+            return Err(HypervisorError::Unsupported);
+        }
+
+        let initrd_url = String::new();
+        let boot_loader = LinuxBootLoader::new(&kernel_path, &initrd_url, command_line);
+
+        let config = VirtualMachineConfiguration::new(boot_loader, cpu_count, memory_size);
+
+        // serial port
+        let std_in = stdin();
+        let std_out = stdout();
+        let attachment =
+            FileHandleSerialPortAttachment::new(&std_in, &std_out);
+        let serial_port =
+            VirtioConsoleDeviceSerialPortConfiguration::new_with_attachment(attachment);
+
+        // block devices
+        let block_devices = VirtioBlockDeviceConfiguration::new(DiskImageStorageDeviceAttachment::new(rootfs_path, false));
+        config.set_storage_devices(block_devices);
+
+        // config validation
+        if let Err(msg) = config.validate() {
+            println!("Invalid Configuration: {}", msg);
+            return Err(HypervisorError::InvalidConfiguration);
+        }
+
+        Ok(Self (VirtualMachine::new(&config)))
+    }
+}
+
+impl HypervisorBackend for AvfBackend {
+    fn start_vm(&self) -> Result<(), HypervisorError> {
+        if !self.vm.can_start() {
+            println!("VM can't start!");
+            process::exit(1);
+        }
+
+        println!("Starting VM...");
+        self.vm.start()?;
+        println!("VM started!");
+
+        let termios = get_terminal_attr(&std_in)?;
+        set_raw_mode(&std_in)?;
+
+        let ctrl_c_events = ctrl_channel()?;
+        let state_changes = self.vm.get_state_channel();
+
+        println!("Waiting for VM state changes...");
+        loop {
+            select! {
+                recv(state_changes) -> state => {
+                    match state {
+                        Ok(vz::VirtualMachineState::Running) => println!("Virtual machine is running!"),
+                        Ok(vz::VirtualMachineState::Stopped) => {
+                            println!("Virtual machine has stopped, exiting!");
+                            break;
+                        }
+                        _ => {
+                            println!("Virtual machine state: {:?}", state);
+                        }
+                    }
+                }
+                recv(ctrl_c_events) -> _ => {
+                    set_terminal_attr(&std_in, &termios).expect("Failed to reset tty back to original state!");
+
+                    if self.vm.can_stop() {
+                        let _  = self.vm.stop();
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        println!("\nExiting");
+    }
+
+    fn stop_vm(&self) -> Result<(), HypervisorError> {
+        if self.vm.can_stop() {
+            self.vm.stop()
+        }
+
+        Ok(())
+    }
+}
+
+// TODO
+/// Trait for the hypervisor backend.
+pub trait HypervisorBackend {
+    //fn init_vm(&mut self, config: &VmConfig) -> Result<(), HypervisorError>;
+    fn start_vm(&self) -> Result<(), HypervisorError>;
+    fn stop_vm(&self) -> Result<(), HypervisorError>;
+    //fn pause_vm(&self) -> Result<(), HypervisorError>;
+    // ... etc.
+}
+
 /// Contains the state and associated methods required for the Firecracker VMM.
 #[derive(Debug)]
 pub struct Vmm {
@@ -315,24 +501,34 @@ pub struct Vmm {
     shutdown_exit_code: Option<FcExitCode>,
 
     // Guest VM core resources.
+    #[cfg(target_os = "linux")]
     kvm: Kvm,
+    #[cfg(target_os = "macos")]
+    hypervisor_backend: Box<dyn HypervisorBackend>,
+    #[cfg(target_os = "linux")]
     vm: Vm,
+    #[cfg(target_os = "linux")]
     guest_memory: GuestMemoryMmap,
     #[cfg(target_os = "linux")]
     // Save UFFD in order to keep it open in the Firecracker process, as well.
     // Since this field is never read again, we need to allow `dead_code`.
     #[allow(dead_code)]
     uffd: Option<Uffd>,
+    #[cfg(target_os = "linux")]
     vcpus_handles: Vec<VcpuHandle>,
+    #[cfg(target_os = "linux")]
     // Used by Vcpus and devices to initiate teardown; Vmm should never write here.
     vcpus_exit_evt: EventFd,
 
+    #[cfg(target_os = "linux")]
     // Allocator for guest resources
     resource_allocator: ResourceAllocator,
+    #[cfg(target_os = "linux")]
     // Guest VM devices.
     mmio_device_manager: MMIODeviceManager,
     #[cfg(target_arch = "x86_64")]
     pio_device_manager: PortIODeviceManager,
+    #[cfg(target_os = "linux")]
     acpi_device_manager: ACPIDeviceManager,
 }
 
@@ -352,6 +548,7 @@ impl Vmm {
         self.shutdown_exit_code
     }
 
+    #[cfg(target_os = "linux")]
     /// Gets the specified bus device.
     pub fn get_bus_device(
         &self,
@@ -368,6 +565,7 @@ impl Vmm {
     /// When:
     /// - [`vmm::VmmEventsObserver::on_vmm_boot`] errors.
     /// - [`vmm::vstate::vcpu::Vcpu::start_threaded`] errors.
+    #[cfg(target_os = "linux")]
     pub fn start_vcpus(
         &mut self,
         mut vcpus: Vec<Vcpu>,
@@ -394,6 +592,7 @@ impl Vmm {
         self.vcpus_handles.reserve(vcpu_count);
 
         for mut vcpu in vcpus.drain(..) {
+            #[cfg(target_os = "linux")]
             vcpu.set_mmio_bus(self.mmio_device_manager.bus.clone());
             #[cfg(target_arch = "x86_64")]
             vcpu.kvm_vcpu
@@ -411,14 +610,17 @@ impl Vmm {
 
     /// Sends a resume command to the vCPUs.
     pub fn resume_vm(&mut self) -> Result<(), VmmError> {
+        #[cfg(target_os = "linux")]
         self.mmio_device_manager.kick_devices();
 
+        #[cfg(target_os = "linux")]
         // Send the events.
         self.vcpus_handles
             .iter()
             .try_for_each(|handle| handle.send_event(VcpuEvent::Resume))
             .map_err(|_| VmmError::VcpuMessage)?;
 
+        #[cfg(target_os = "linux")]
         // Check the responses.
         if self
             .vcpus_handles
@@ -429,18 +631,23 @@ impl Vmm {
             return Err(VmmError::VcpuMessage);
         }
 
+        #[cfg(target_os = "macos")]
+        self.vm.can_resume()?; // TODO
+
         self.instance_info.state = VmState::Running;
         Ok(())
     }
 
     /// Sends a pause command to the vCPUs.
     pub fn pause_vm(&mut self) -> Result<(), VmmError> {
+        #[cfg(target_os = "linux")]
         // Send the events.
         self.vcpus_handles
             .iter()
             .try_for_each(|handle| handle.send_event(VcpuEvent::Pause))
             .map_err(|_| VmmError::VcpuMessage)?;
 
+        #[cfg(target_os = "linux")]
         // Check the responses.
         if self
             .vcpus_handles
@@ -455,11 +662,13 @@ impl Vmm {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     /// Returns a reference to the inner `GuestMemoryMmap` object.
     pub fn guest_memory(&self) -> &GuestMemoryMmap {
         &self.guest_memory
     }
 
+    #[cfg(target_os = "linux")]
     /// Sets RDA bit in serial console
     pub fn emulate_serial_init(&self) -> Result<(), EmulateSerialInitError> {
         // When restoring from a previously saved state, there is no serial
@@ -518,6 +727,7 @@ impl Vmm {
             .map_err(VmmError::I8042Error)
     }
 
+    #[cfg(target_os = "linux")]
     /// Saves the state of a paused Microvm.
     pub fn save_state(&mut self, vm_info: &VmInfo) -> Result<MicrovmState, MicrovmStateError> {
         use self::MicrovmStateError::SaveVmState;
@@ -528,6 +738,7 @@ impl Vmm {
             {
                 self.vm.save_state().map_err(SaveVmState)?
             }
+
             #[cfg(target_arch = "aarch64")]
             {
                 let mpidrs = construct_kvm_mpidrs(&vcpu_states);
@@ -546,11 +757,13 @@ impl Vmm {
             kvm_state,
             vm_state,
             vcpu_states,
+            #[cfg(target_os = "linux")]
             device_states,
             acpi_dev_state,
         })
     }
 
+    #[cfg(target_os = "linux")]
     fn save_vcpu_states(&mut self) -> Result<Vec<VcpuState>, MicrovmStateError> {
         for handle in self.vcpus_handles.iter() {
             handle
@@ -579,6 +792,7 @@ impl Vmm {
         Ok(vcpu_states)
     }
 
+    #[cfg(target_os = "linux")]
     /// Dumps CPU configuration.
     pub fn dump_cpu_config(&mut self) -> Result<Vec<CpuConfiguration>, DumpCpuConfigError> {
         for handle in self.vcpus_handles.iter() {
@@ -607,6 +821,7 @@ impl Vmm {
         Ok(cpu_configs)
     }
 
+    #[cfg(target_os = "linux")]
     /// Retrieves the KVM dirty bitmap for each of the guest's memory regions.
     pub fn reset_dirty_bitmap(&self) {
         self.guest_memory
@@ -620,6 +835,7 @@ impl Vmm {
             });
     }
 
+    #[cfg(target_os = "linux")]
     /// Retrieves the KVM dirty bitmap for each of the guest's memory regions.
     pub fn get_dirty_bitmap(&self) -> Result<DirtyBitmap, VmmError> {
         let mut bitmap: DirtyBitmap = HashMap::new();
@@ -638,6 +854,7 @@ impl Vmm {
         Ok(bitmap)
     }
 
+    #[cfg(target_os = "linux")]
     /// Enables or disables KVM dirty page tracking.
     pub fn set_dirty_page_tracking(&mut self, enable: bool) -> Result<(), VmmError> {
         // This function _always_ results in an ioctl update. The VMM is stateless in the sense
@@ -650,6 +867,7 @@ impl Vmm {
             .map_err(VmmError::Vm)
     }
 
+    #[cfg(target_os = "linux")]
     /// Updates the path of the host file backing the emulated block device with id `drive_id`.
     /// We update the disk image on the device and its virtio configuration.
     pub fn update_block_device_path(
@@ -666,6 +884,7 @@ impl Vmm {
             .map_err(VmmError::DeviceManager)
     }
 
+    #[cfg(target_os = "linux")]
     /// Updates the rate limiter parameters for block device with `drive_id` id.
     pub fn update_block_rate_limiter(
         &mut self,
@@ -682,6 +901,7 @@ impl Vmm {
             .map_err(VmmError::DeviceManager)
     }
 
+    #[cfg(target_os = "linux")]
     /// Updates the rate limiter parameters for block device with `drive_id` id.
     pub fn update_vhost_user_block_config(&mut self, drive_id: &str) -> Result<(), VmmError> {
         self.mmio_device_manager
@@ -691,6 +911,7 @@ impl Vmm {
             .map_err(VmmError::DeviceManager)
     }
 
+    #[cfg(target_os = "linux")]
     /// Updates the rate limiter parameters for net device with `net_id` id.
     pub fn update_net_rate_limiters(
         &mut self,
@@ -708,6 +929,7 @@ impl Vmm {
             .map_err(VmmError::DeviceManager)
     }
 
+    #[cfg(target_os = "linux")]
     /// Returns a reference to the balloon device if present.
     pub fn balloon_config(&self) -> Result<BalloonConfig, BalloonError> {
         if let Some(busdev) = self.get_bus_device(DeviceType::Virtio(TYPE_BALLOON), BALLOON_DEV_ID)
@@ -733,6 +955,7 @@ impl Vmm {
         }
     }
 
+    #[cfg(target_os = "linux")]
     /// Returns the latest balloon statistics if they are enabled.
     pub fn latest_balloon_stats(&self) -> Result<BalloonStats, BalloonError> {
         if let Some(busdev) = self.get_bus_device(DeviceType::Virtio(TYPE_BALLOON), BALLOON_DEV_ID)
@@ -760,6 +983,7 @@ impl Vmm {
         }
     }
 
+    #[cfg(target_os = "linux")]
     /// Updates configuration for the balloon device target size.
     pub fn update_balloon_config(&mut self, amount_mib: u32) -> Result<(), BalloonError> {
         // The balloon cannot have a target size greater than the size of
@@ -793,6 +1017,7 @@ impl Vmm {
         }
     }
 
+    #[cfg(target_os = "linux")]
     /// Updates configuration for the balloon device as described in `balloon_stats_update`.
     pub fn update_balloon_stats_config(
         &mut self,
@@ -846,6 +1071,7 @@ impl Vmm {
         // We send a "Finish" event.  If a VCPU has already exited, this is the only
         // message it will accept... but running and paused will take it as well.
         // It breaks out of the state machine loop so that the thread can be joined.
+        #[cfg(target_os = "linux")]
         for (idx, handle) in self.vcpus_handles.iter().enumerate() {
             if let Err(err) = handle.send_event(VcpuEvent::Finish) {
                 error!("Failed to send VcpuEvent::Finish to vCPU {}: {}", idx, err);
@@ -855,7 +1081,15 @@ impl Vmm {
         // the VcpuHandle's Drop trait.  We can trigger that to happen now by clearing the
         // list of handles. Do it here instead of Vmm::Drop to avoid dependency cycles.
         // (Vmm's Drop will also check if this list is empty).
+        #[cfg(target_os = "linux")]
         self.vcpus_handles.clear();
+
+        #[cfg(target_os = "macos")]
+        self.hypervisor_backend.stop_vm()
+            .or_else(|v| {
+                error!("Failed to stop the VM: {}", v);
+                Err(v)
+            });
 
         // Break the main event loop, propagating the Vmm exit-code.
         self.shutdown_exit_code = Some(exit_code);
@@ -882,6 +1116,7 @@ impl Vmm {
 /// | 63 .... 56 | 55 .... 48 | 47 .... 40 | 39 .... 32 |
 /// |    Aff3    |    Aff2    |    Aff1    |    Aff0    |
 /// As specified in the linux kernel: Documentation/virt/kvm/devices/arm-vgic-v3.rst
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 fn construct_kvm_mpidrs(vcpu_states: &[VcpuState]) -> Vec<u64> {
     vcpu_states
@@ -916,6 +1151,7 @@ impl Drop for Vmm {
         // has already been stopped by the event manager at this point.
         self.stop(self.shutdown_exit_code.unwrap_or(FcExitCode::Ok));
 
+        #[cfg(target_os = "linux")]
         if let Some(observer) = self.events_observer.as_mut() {
             let res = observer.lock().set_canon_mode().inspect_err(|&err| {
                 warn!("Cannot set canonical mode for the terminal. {:?}", err);
@@ -925,17 +1161,20 @@ impl Drop for Vmm {
             }
         }
 
+        #[cfg(target_os = "linux")]
         // Write the metrics before exiting.
         if let Err(err) = METRICS.write() {
             error!("Failed to write metrics while stopping: {}", err);
         }
 
+        #[cfg(target_os = "linux")]
         if !self.vcpus_handles.is_empty() {
             error!("Failed to tear down Vmm: the vcpu threads have not finished execution.");
         }
     }
 }
 
+#[cfg(target_os = "linux")]
 impl MutEventSubscriber for Vmm {
     /// Handle a read event (EPOLLIN).
     fn process(&mut self, event: Events, _: &mut EventOps) {

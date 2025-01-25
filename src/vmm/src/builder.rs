@@ -11,36 +11,49 @@ use std::io::{self, Seek, SeekFrom};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
+#[cfg(target_os = "linux")]
 use event_manager::{MutEventSubscriber, SubscriberOps};
+#[cfg(target_os = "linux")]
 use libc::EFD_NONBLOCK;
 use linux_loader::cmdline::Cmdline as LoaderKernelCmdline;
 #[cfg(target_arch = "x86_64")]
 use linux_loader::loader::elf::Elf as Loader;
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 use linux_loader::loader::pe::PE as Loader;
 use linux_loader::loader::KernelLoader;
 #[cfg(target_os = "linux")]
 use userfaultfd::Uffd;
 use utils::time::TimestampUs;
+#[cfg(target_os = "linux")]
 use vm_memory::ReadVolatile;
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 use vm_superio::Rtc;
+#[cfg(target_os = "linux")]
 use vm_superio::Serial;
+#[cfg(target_os = "linux")]
 use vmm_sys_util::eventfd::EventFd;
 
 #[cfg(target_arch = "x86_64")]
 use crate::acpi;
+#[cfg(target_os = "linux")]
 use crate::arch::InitrdConfig;
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 use crate::construct_kvm_mpidrs;
+#[cfg(target_os = "linux")]
 use crate::cpu_config::templates::{
     CpuConfiguration, CustomCpuTemplate, GetCpuTemplate, GetCpuTemplateError, GuestConfigError,
     KvmCapability,
 };
+#[cfg(target_os = "linux")]
 use crate::device_manager::acpi::ACPIDeviceManager;
 #[cfg(target_arch = "x86_64")]
 use crate::device_manager::legacy::PortIODeviceManager;
+#[cfg(target_os = "linux")]
 use crate::device_manager::mmio::MMIODeviceManager;
+#[cfg(target_os = "linux")]
 use crate::device_manager::persist::{
     ACPIDeviceManagerConstructorArgs, ACPIDeviceManagerRestoreError, MMIODevManagerConstructorArgs,
 };
@@ -157,7 +170,6 @@ fn create_vmm_and_vcpus(
     instance_info: &InstanceInfo,
     event_manager: &mut EventManager,
     guest_memory: GuestMemoryMmap,
-    #[cfg(target_os = "linux")]
     uffd: Option<Uffd>,
     track_dirty_pages: bool,
     vcpu_count: u8,
@@ -180,12 +192,14 @@ fn create_vmm_and_vcpus(
         .map_err(VmmError::Vm)
         .map_err(StartMicrovmError::Internal)?;
 
+    #[cfg(target_os = "linux")]
     let vcpus_exit_evt = EventFd::new(libc::EFD_NONBLOCK)
         .map_err(VmmError::EventFd)
         .map_err(Internal)?;
 
     let resource_allocator = ResourceAllocator::new()?;
 
+    #[cfg(target_os = "linux")]
     // Instantiate the MMIO device manager.
     let mmio_device_manager = MMIODeviceManager::new();
 
@@ -229,7 +243,7 @@ fn create_vmm_and_vcpus(
     // Search for `kvm_arch_vcpu_create` in arch/arm/kvm/arm.c.
     #[cfg(target_arch = "aarch64")]
     let vcpus = {
-        let vcpus = create_vcpus(&kvm, &vm, vcpu_count, &vcpus_exit_evt).map_err(Internal)?;
+        let vcpus = create_vcpus(#[cfg(target_os = "linux")] &kvm, &vm, vcpu_count, #[cfg(target_os = "linux")] &vcpus_exit_evt).map_err(Internal)?;
         setup_interrupt_controller(&mut vm, vcpu_count)?;
         vcpus
     };
@@ -238,14 +252,17 @@ fn create_vmm_and_vcpus(
         events_observer: Some(std::io::stdin()),
         instance_info: instance_info.clone(),
         shutdown_exit_code: None,
+        #[cfg(target_os = "linux")]
         kvm,
         vm,
         guest_memory,
         #[cfg(target_os = "linux")]
         uffd,
         vcpus_handles: Vec::new(),
+        #[cfg(target_os = "linux")]
         vcpus_exit_evt,
         resource_allocator,
+        #[cfg(target_os = "linux")]
         mmio_device_manager,
         #[cfg(target_arch = "x86_64")]
         pio_device_manager,
@@ -315,6 +332,7 @@ pub fn build_microvm_for_boot(
         .map(|vcpu| vcpu.copy_kvm_vcpu_fd(vmm.vm()))
         .collect::<Result<Vec<_>, _>>()?;
 
+    #[cfg(target_os = "linux")]
     // The boot timer device needs to be the first device attached in order
     // to maintain the same MMIO address referenced in the documentation
     // and tests.
@@ -322,16 +340,19 @@ pub fn build_microvm_for_boot(
         attach_boot_timer_device(&mut vmm, request_ts)?;
     }
 
+    #[cfg(target_os = "linux")]
     if let Some(balloon) = vm_resources.balloon.get() {
         attach_balloon_device(&mut vmm, &mut boot_cmdline, balloon, event_manager)?;
     }
 
+    #[cfg(target_os = "linux")]
     attach_block_devices(
         &mut vmm,
         &mut boot_cmdline,
         vm_resources.block.devices.iter(),
         event_manager,
     )?;
+    #[cfg(target_os = "linux")]
     attach_net_devices(
         &mut vmm,
         &mut boot_cmdline,
@@ -339,14 +360,17 @@ pub fn build_microvm_for_boot(
         event_manager,
     )?;
 
+    #[cfg(target_os = "linux")]
     if let Some(unix_vsock) = vm_resources.vsock.get() {
         attach_unixsock_vsock_device(&mut vmm, &mut boot_cmdline, unix_vsock, event_manager)?;
     }
 
+    #[cfg(target_os = "linux")]
     if let Some(entropy) = vm_resources.entropy.get() {
         attach_entropy_device(&mut vmm, &mut boot_cmdline, entropy, event_manager)?;
     }
 
+    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     attach_legacy_devices_aarch64(event_manager, &mut vmm, &mut boot_cmdline).map_err(Internal)?;
 
@@ -431,6 +455,7 @@ pub fn build_and_boot_microvm(
     Ok(vmm)
 }
 
+#[cfg(target_os = "linux")]
 /// Error type for [`build_microvm_from_snapshot`].
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 pub enum BuildMicrovmFromSnapshotError {
@@ -454,17 +479,14 @@ pub enum BuildMicrovmFromSnapshotError {
     RestoreMmioDevice(#[from] MicrovmStateError),
     /// Failed to emulate MMIO serial: {0}
     EmulateSerialInit(#[from] crate::EmulateSerialInitError),
-    #[cfg(target_os = "linux")]
     /// Failed to start vCPUs as no vCPU seccomp filter found.
     MissingVcpuSeccompFilters,
     /// Failed to start vCPUs: {0}
     StartVcpus(#[from] crate::StartVcpusError),
     /// Failed to restore vCPUs: {0}
     RestoreVcpus(#[from] VcpuError),
-    #[cfg(target_os = "linux")]
     /// Failed to apply VMM secccomp filter as none found.
     MissingVmmSeccompFilters,
-    #[cfg(target_os = "linux")]
     /// Failed to apply VMM secccomp filter: {0}
     SeccompFiltersInternal(#[from] crate::seccomp::InstallationError),
     /// Failed to restore ACPI device manager: {0}
@@ -548,10 +570,13 @@ pub fn build_microvm_from_snapshot(
         instance_id: &instance_info.id,
     };
 
+    #[cfg(target_os = "linux")]
+    {
     vmm.mmio_device_manager =
         MMIODeviceManager::restore(mmio_ctor_args, &microvm_state.device_states)
             .map_err(MicrovmStateError::RestoreDevices)?;
     vmm.emulate_serial_init()?;
+    }
 
     {
         let acpi_ctor_args = ACPIDeviceManagerConstructorArgs {
@@ -707,6 +732,8 @@ pub fn setup_interrupt_controller(vm: &mut Vm, vcpu_count: u8) -> Result<(), Sta
         .map_err(StartMicrovmError::Internal)
 }
 
+// replace with virt-fwk's termios
+#[cfg(target_os = "linux")]
 /// Sets up the serial device.
 pub fn setup_serial_device(
     event_manager: &mut EventManager,
@@ -730,6 +757,7 @@ pub fn setup_serial_device(
     Ok(serial)
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 fn attach_legacy_devices_aarch64(
     event_manager: &mut EventManager,
@@ -761,19 +789,24 @@ fn attach_legacy_devices_aarch64(
     ));
     vmm.mmio_device_manager
         .register_mmio_rtc(&mut vmm.resource_allocator, rtc, None)
-        .map_err(VmmError::RegisterMMIODevice)
+        .map_err(VmmError::RegisterMMIODevice);
+
+    Ok(())
 }
 
 fn create_vcpus(
+    #[cfg(target_os = "linux")]
     kvm: &Kvm,
     vm: &Vm,
     vcpu_count: u8,
+    #[cfg(target_os = "linux")]
     exit_evt: &EventFd,
 ) -> Result<Vec<Vcpu>, VmmError> {
     let mut vcpus = Vec::with_capacity(vcpu_count as usize);
     for cpu_idx in 0..vcpu_count {
+        #[cfg(target_os = "linux")]
         let exit_evt = exit_evt.try_clone().map_err(VmmError::EventFd)?;
-        let vcpu = Vcpu::new(cpu_idx, vm, kvm, exit_evt).map_err(VmmError::VcpuCreate)?;
+        let vcpu = Vcpu::new(cpu_idx, vm, #[cfg(target_os = "linux")] kvm, #[cfg(target_os = "linux")] exit_evt).map_err(VmmError::VcpuCreate)?;
         vcpus.push(vcpu);
     }
     Ok(vcpus)
@@ -874,6 +907,8 @@ pub fn configure_system_for_boot(
             vcpus,
         )?;
     }
+
+    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     {
         let optional_capabilities = vmm.kvm.optional_capabilities();
@@ -908,6 +943,7 @@ pub fn configure_system_for_boot(
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 /// Attaches a VirtioDevice device to the device manager and event manager.
 fn attach_virtio_device<T: 'static + VirtioDevice + MutEventSubscriber + Debug>(
     event_manager: &mut EventManager,
@@ -935,6 +971,7 @@ fn attach_virtio_device<T: 'static + VirtioDevice + MutEventSubscriber + Debug>(
         .map(|_| ())
 }
 
+#[cfg(target_os = "linux")]
 pub(crate) fn attach_boot_timer_device(
     vmm: &mut Vmm,
     request_ts: TimestampUs,
@@ -961,6 +998,7 @@ fn attach_vmgenid_device(vmm: &mut Vmm) -> Result<(), StartMicrovmError> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 fn attach_entropy_device(
     vmm: &mut Vmm,
     cmdline: &mut LoaderKernelCmdline,
@@ -983,6 +1021,7 @@ fn attach_entropy_device(
     )
 }
 
+#[cfg(target_os = "linux")]
 fn attach_block_devices<'a, I: Iterator<Item = &'a Arc<Mutex<Block>>> + Debug>(
     vmm: &mut Vmm,
     cmdline: &mut LoaderKernelCmdline,
@@ -1019,6 +1058,7 @@ fn attach_block_devices<'a, I: Iterator<Item = &'a Arc<Mutex<Block>>> + Debug>(
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 fn attach_net_devices<'a, I: Iterator<Item = &'a Arc<Mutex<Net>>> + Debug>(
     vmm: &mut Vmm,
     cmdline: &mut LoaderKernelCmdline,
@@ -1033,6 +1073,7 @@ fn attach_net_devices<'a, I: Iterator<Item = &'a Arc<Mutex<Net>>> + Debug>(
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 fn attach_unixsock_vsock_device(
     vmm: &mut Vmm,
     cmdline: &mut LoaderKernelCmdline,
@@ -1044,6 +1085,7 @@ fn attach_unixsock_vsock_device(
     attach_virtio_device(event_manager, vmm, id, unix_vsock.clone(), cmdline, false)
 }
 
+#[cfg(target_os = "linux")]
 fn attach_balloon_device(
     vmm: &mut Vmm,
     cmdline: &mut LoaderKernelCmdline,
@@ -1069,6 +1111,7 @@ pub(crate) fn set_stdout_nonblocking() {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 pub(crate) mod tests {
     use std::io::Write;
@@ -1155,9 +1198,11 @@ pub(crate) mod tests {
             .map_err(StartMicrovmError::Internal)
             .unwrap();
 
+        #[cfg(target_os = "linux")]
         let kvm = Kvm::new(vec![]).unwrap();
         let mut vm = Vm::new(&kvm).unwrap();
         vm.memory_init(&guest_memory, false).unwrap();
+        #[cfg(target_os = "linux")]
         let mmio_device_manager = MMIODeviceManager::new();
         let acpi_device_manager = ACPIDeviceManager::new();
         #[cfg(target_arch = "x86_64")]
@@ -1190,14 +1235,16 @@ pub(crate) mod tests {
             events_observer: Some(std::io::stdin()),
             instance_info: InstanceInfo::default(),
             shutdown_exit_code: None,
+            #[cfg(target_os = "linux")]
             kvm,
             vm,
             guest_memory,
-            #[cfg(target_os = "linux")]
             uffd: None,
             vcpus_handles: Vec::new(),
+            #[cfg(target_os = "linux")]
             vcpus_exit_evt,
             resource_allocator: ResourceAllocator::new().unwrap(),
+            #[cfg(target_os = "linux")]
             mmio_device_manager,
             #[cfg(target_arch = "x86_64")]
             pio_device_manager,
@@ -1409,16 +1456,18 @@ pub(crate) mod tests {
         let vcpu_count = 2;
         let guest_memory = arch_mem(128 << 20);
 
+        #[cfg(target_os = "linux")]
         let kvm = Kvm::new(vec![]).expect("Cannot create Kvm");
         #[allow(unused_mut)]
         let mut vm = Vm::new(&kvm).unwrap();
         vm.memory_init(&guest_memory, false).unwrap();
+        #[cfg(target_os = "linux")]
         let evfd = EventFd::new(libc::EFD_NONBLOCK).unwrap();
 
         #[cfg(target_arch = "x86_64")]
         setup_interrupt_controller(&mut vm).unwrap();
 
-        let vcpu_vec = create_vcpus(&kvm, &vm, vcpu_count, &evfd).unwrap();
+        let vcpu_vec = create_vcpus(#[cfg(target_os = "linux")] &kvm, &vm, vcpu_count, #[cfg(target_os = "linux")] &evfd).unwrap();
         assert_eq!(vcpu_vec.len(), vcpu_count as usize);
     }
 

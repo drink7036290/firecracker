@@ -1,10 +1,12 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
+#[cfg(target_os = "linux")]
 /// Module with Kvm implementation.
 pub mod kvm;
+#[cfg(target_os = "linux")]
 /// Module with GuestMemory implementation.
 pub mod memory;
+#[cfg(target_os = "linux")]
 /// Module with Vcpu implementation.
 pub mod vcpu;
 /// Module with Vm implementation.

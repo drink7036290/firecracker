@@ -4,22 +4,146 @@ ls -al /dev/kvm
 
 # =================================
 
-sudo systemctl start docker
-sudo tools/devtool checkenv
-sudo tools/devtool build
+*userfaultfd
+*seccomp
+seccompiler
+*timerfd
+    *stats_timer
+    *update_timer_state
+rebase-snap
+jailer
+netns
+cgroups
+chroot
+KVM
+balloon
+snapshot
+micro-http
+vmm_sys_util
+    epoll
+    eventfd
+    sock_ctrl_msg
+vhost
+src/firecracker
+fdt
+acpi
+DSDT
+any #[cfg(test)]
+*   setup_serial_device
+*   mmio_device_manager
+*   vcpus_exit_evt
+*   attach_virtio_device
+*   attach_boot_timer_device
+*   attach_legacy_devices_aarch64
+*   attach_entropy_device
+*   attach_block_devices
+*   attach_net_devices
+*   attach_unixsock_vsock_device
+*   attach_balloon_device
+*   get_bus_device
+*   update_block_device
+update_block_rate_limiter
+update_vhost_user_block_config
+update_net_rate_limiters
+RuntimeApiController
 
-# [Firecracker release.sh 2025-01-21T01:16:44+00:00] Binaries placed under build/cargo_target/x86_64-unknown-linux-musl/debug
-# toolchain="$(uname -m)-unknown-linux-musl"
+*   emulate_serial_init
+*   EmulateSerialInit
+BuildMicrovmFromSnapshotError
+create_snapshot
+balloon_config
+latest_balloon_stats
+update_balloon_config
+update_balloon_stats_config
 
-$ sudo cp build/cargo_target/$(uname -m)-unknown-linux-musl/debug/firecracker ../firecracker_run/
+#=========
+event-manager
+    MutEventSubscriber
+    #replaced with FileHandleSerialPortAttachment
+
+#=========
+
+#![cfg_attr(not(target_os = "linux"), allow(dead_code))]
+
+#[cfg(all(test, target_os = "linux"))]
+
+#[cfg(target_os = "linux")]
+
+#[cfg(not(target_os = "linux"))]
+fn main() {
+    // On macOS or other platforms, this is a no-op
+}
+
+#=========
+cargo build --target aarch64-apple-darwin
+
+.arg(
+    Argument::new("config-file")
+        .takes_value(true)
+        .help("Path to a file that contains the microVM configuration in JSON format."),
+)
+.arg(
+    Argument::new("no-api")
+        .takes_value(false)
+        .requires("config-file")
+        .help(
+            "Optional parameter which allows starting and using a microVM without an \
+             active API socket.",
+        ),
+)
+
+--no-api --config-file macos.json
+
+#=========
+
+macos.json
+
+{
+    "boot-source": {
+        "kernel_image_path": "assets/kernel-6.1.26",
+        "boot_args": "console=hvc0 root=/dev/vda"
+    },
+    "drives": [
+        {
+            "path_on_host": "assets/ubuntu-24.04.img",
+            "is_read_only": false,
+            "is_root_device": true
+        }
+    ],
+    "machine-config": {
+        "vcpu_count": 2,
+        "mem_size_mib": 1024,
+        ...
+    },
+}
+
+
+#=========
+
+#sudo systemctl start docker
+#tools/devtool checkenv
+#tools/devtool build # DO NOT run as sudo, as the build/ dir is owned by root and can't be accessed by containers
+
+rustup component add --toolchain 1.83.0-aarch64-apple-darwin rustfmt
+cargo build
+
+ARCH="aarch64"
+
+mkdir -p ../firecracker_run
+cp build/cargo_target/$ARCH-unknown-linux-musl/debug/firecracker ../firecracker_run/
 
 # =================================
 
-# firecracker_run/
+cd ../firecracker_run
+brew install wget
 
-ARCH="$(uname -m)"
-
-latest=$(wget "http://spec.ccfc.min.s3.amazonaws.com/?prefix=firecracker-ci/v1.11/$ARCH/vmlinux-5.10&list-type=2" -O - 2>/dev/null | grep -oP "(?<=<Key>)(firecracker-ci/v1.11/$ARCH/vmlinux-5\.10\.[0-9]{1,3})(?=</Key>)")
+latest=$(
+  wget "http://spec.ccfc.min.s3.amazonaws.com/?prefix=firecracker-ci/v1.11/$ARCH/vmlinux-6.1&list-type=2" \
+    -O - 2>/dev/null \
+  | sed -nE 's#.*<Key>(firecracker-ci/v1\.11/'"$ARCH"'/vmlinux-6\.1\.[0-9]+)</Key>.*#\1#p' \
+  | tail -1
+)
+echo "Found: $latest"
 
 # Download a linux kernel binary
 wget "https://s3.amazonaws.com/spec.ccfc.min/${latest}"
@@ -29,17 +153,19 @@ wget -O ubuntu-24.04.squashfs.upstream "https://s3.amazonaws.com/spec.ccfc.min/f
 
 # Create an ssh key for the rootfs
 sudo rm -fr squashfs-root/
+brew install squashfs
 unsquashfs ubuntu-24.04.squashfs.upstream
 
-sudo rm -f ubuntu-24.04.id_rsa
+rm -f ubuntu-24.04.id_rsa
 ssh-keygen -f id_rsa -N ""
 cp -v id_rsa.pub squashfs-root/root/.ssh/authorized_keys
 mv -v id_rsa ./ubuntu-24.04.id_rsa
 
 # create ext4 filesystem image
 sudo rm -fr ubuntu-24.04.ext4
-sudo chown -R root:root squashfs-root
+sudo chown -R root:wheel squashfs-root
 truncate -s 400M ubuntu-24.04.ext4
-sudo mkfs.ext4 -d squashfs-root -F ubuntu-24.04.ext4
+brew install e2fsprogs
+sudo /opt/homebrew/opt/e2fsprogs/sbin/mke2fs -d squashfs-root -t ext4 ubuntu-24.04.ext4
 
 // ==================================

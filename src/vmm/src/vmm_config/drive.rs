@@ -7,10 +7,15 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "linux")]
 use super::RateLimiterConfig;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::block::device::Block;
+#[cfg(target_os = "linux")]
 pub use crate::devices::virtio::block::virtio::device::FileEngineType;
-use crate::devices::virtio::block::{BlockError, CacheType};
+#[cfg(target_os = "linux")]
+use crate::devices::virtio::block::CacheType;
+use crate::devices::virtio::block::BlockError;
 use crate::VmmError;
 
 /// Errors associated with the operations allowed on a drive.
@@ -18,6 +23,7 @@ use crate::VmmError;
 pub enum DriveError {
     /// Unable to create the virtio block device: {0}
     CreateBlockDevice(BlockError),
+    #[cfg(target_os = "linux")]
     /// Cannot create RateLimiter: {0}
     CreateRateLimiter(io::Error),
     /// Unable to patch the block device: {0} Please verify the request arguments.
@@ -39,6 +45,7 @@ pub struct BlockDeviceConfig {
     /// Setting this flag to true will mount the block device in the
     /// guest under /dev/vda unless the partuuid is present.
     pub is_root_device: bool,
+    #[cfg(target_os = "linux")]
     /// If set to true, the drive will ignore flush requests coming from
     /// the guest driver.
     #[serde(default)]
@@ -50,8 +57,10 @@ pub struct BlockDeviceConfig {
     pub is_read_only: Option<bool>,
     /// Path of the drive.
     pub path_on_host: Option<String>,
+    #[cfg(target_os = "linux")]
     /// Rate Limiter for I/O operations.
     pub rate_limiter: Option<RateLimiterConfig>,
+    #[cfg(target_os = "linux")]
     /// The type of IO engine used by the device.
     // #[serde(default)]
     // #[serde(rename = "io_engine")]
@@ -59,11 +68,13 @@ pub struct BlockDeviceConfig {
     #[serde(rename = "io_engine")]
     pub file_engine_type: Option<FileEngineType>,
 
+    #[cfg(target_os = "linux")]
     // VhostUserBlock specific fields
     /// Path to the vhost-user socket.
     pub socket: Option<String>,
 }
 
+#[cfg(target_os = "linux")]
 /// Only provided fields will be updated. I.e. if any optional fields
 /// are missing, they will not be updated.
 #[derive(Debug, Default, PartialEq, Eq, Deserialize)]
@@ -72,7 +83,7 @@ pub struct BlockDeviceUpdateConfig {
     /// The drive ID, as provided by the user at creation time.
     pub drive_id: String,
 
-    // VirtioBlock sepcific fields
+    // VirtioBlock specific fields
     /// New block file path on the host. Only provided data will be updated.
     pub path_on_host: Option<String>,
     /// New rate limiter config.
@@ -175,6 +186,7 @@ impl BlockBuilder {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 mod tests {
     use vmm_sys_util::tempfile::TempFile;

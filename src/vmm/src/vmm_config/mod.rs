@@ -10,28 +10,37 @@ use std::path::Path;
 use libc::O_NONBLOCK;
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "linux")]
 use crate::rate_limiter::{BucketUpdate, RateLimiter, TokenBucket};
 
+#[cfg(target_os = "linux")]
 /// Wrapper for configuring the balloon device.
 pub mod balloon;
 /// Wrapper for configuring the microVM boot source.
 pub mod boot_source;
 /// Wrapper for configuring the block devices.
 pub mod drive;
+#[cfg(target_os = "linux")]
 /// Wrapper for configuring the entropy device attached to the microVM.
 pub mod entropy;
+#[cfg(target_os = "linux")]
 /// Wrapper over the microVM general information attached to the microVM.
 pub mod instance_info;
 /// Wrapper for configuring the memory and CPU of the microVM.
 pub mod machine_config;
+#[cfg(target_os = "linux")]
 /// Wrapper for configuring the metrics.
 pub mod metrics;
+#[cfg(target_os = "linux")]
 /// Wrapper for configuring the MMDS.
 pub mod mmds;
+#[cfg(target_os = "linux")]
 /// Wrapper for configuring the network devices attached to the microVM.
 pub mod net;
+#[cfg(target_os = "linux")]
 /// Wrapper for configuring microVM snapshots and the microVM state.
 pub mod snapshot;
+#[cfg(target_os = "linux")]
 /// Wrapper for configuring the vsock devices attached to the microVM.
 pub mod vsock;
 
@@ -44,6 +53,7 @@ pub mod vsock;
 // Public access would then be more tightly regulated via `VmmAction`s, consisting of tuples like
 // (entry-point-into-VMM-logic, stateless-args-structure).
 
+#[cfg(target_os = "linux")]
 /// A public-facing, stateless structure, holding all the data we need to create a TokenBucket
 /// (live) object.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
@@ -55,7 +65,7 @@ pub struct TokenBucketConfig {
     /// See TokenBucket::refill_time.
     pub refill_time: u64,
 }
-
+#[cfg(target_os = "linux")]
 impl From<&TokenBucket> for TokenBucketConfig {
     fn from(tb: &TokenBucket) -> Self {
         let one_time_burst = match tb.initial_one_time_burst() {
@@ -69,7 +79,7 @@ impl From<&TokenBucket> for TokenBucketConfig {
         }
     }
 }
-
+#[cfg(target_os = "linux")]
 /// A public-facing, stateless structure, holding all the data we need to create a RateLimiter
 /// (live) object.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
@@ -80,7 +90,7 @@ pub struct RateLimiterConfig {
     /// Data used to initialize the RateLimiter::ops bucket.
     pub ops: Option<TokenBucketConfig>,
 }
-
+#[cfg(target_os = "linux")]
 /// A public-facing, stateless structure, specifying RateLimiter properties updates.
 #[derive(Debug)]
 pub struct RateLimiterUpdate {
@@ -89,7 +99,7 @@ pub struct RateLimiterUpdate {
     /// Possible update to the RateLimiter::ops bucket.
     pub ops: BucketUpdate,
 }
-
+#[cfg(target_os = "linux")]
 fn get_bucket_update(tb_cfg: &Option<TokenBucketConfig>) -> BucketUpdate {
     match tb_cfg {
         // There is data to update.
@@ -108,7 +118,7 @@ fn get_bucket_update(tb_cfg: &Option<TokenBucketConfig>) -> BucketUpdate {
         None => BucketUpdate::None,
     }
 }
-
+#[cfg(target_os = "linux")]
 impl From<Option<RateLimiterConfig>> for RateLimiterUpdate {
     fn from(cfg: Option<RateLimiterConfig>) -> Self {
         if let Some(cfg) = cfg {
@@ -125,7 +135,7 @@ impl From<Option<RateLimiterConfig>> for RateLimiterUpdate {
         }
     }
 }
-
+#[cfg(target_os = "linux")]
 impl TryInto<RateLimiter> for RateLimiterConfig {
     type Error = io::Error;
 
@@ -142,7 +152,7 @@ impl TryInto<RateLimiter> for RateLimiterConfig {
         )
     }
 }
-
+#[cfg(target_os = "linux")]
 impl From<&RateLimiter> for RateLimiterConfig {
     fn from(rl: &RateLimiter) -> Self {
         RateLimiterConfig {
@@ -151,7 +161,7 @@ impl From<&RateLimiter> for RateLimiterConfig {
         }
     }
 }
-
+#[cfg(target_os = "linux")]
 impl RateLimiterConfig {
     /// [`Option<T>`] already implements [`From<T>`] so we have to use a custom
     /// one.
@@ -163,7 +173,7 @@ impl RateLimiterConfig {
         }
     }
 }
-
+#[cfg(target_os = "linux")]
 /// Create and opens a File for writing to it.
 /// In case we open a FIFO, in order to not block the instance if nobody is consuming the message
 /// that is flushed to the two pipes, we are opening it with `O_NONBLOCK` flag.
@@ -175,7 +185,7 @@ fn open_file_nonblock(path: &Path) -> Result<File, std::io::Error> {
         .write(true)
         .open(path)
 }
-
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 mod tests {
     use super::*;
