@@ -36,19 +36,17 @@ use crate::vstate::kvm::Kvm;
 #[cfg(target_os = "linux")]
 use crate::vstate::memory::{Address, GuestMemory, GuestMemoryMmap, GuestMemoryRegion};
 
+#[cfg(target_os = "linux")]
 /// Errors associated with the wrappers over KVM ioctls.
 /// Needs `rustfmt::skip` to make multiline comments work
 #[rustfmt::skip]
 #[derive(Debug, PartialEq, Eq, thiserror::Error, displaydoc::Display)]
 pub enum VmError {
-    #[cfg(target_os = "linux")]
     /// Cannot set the memory regions: {0}
     SetUserMemoryRegion(kvm_ioctls::Error),
-    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     /// Error creating the global interrupt controller: {0}
     VmCreateGIC(crate::arch::aarch64::gic::GicError),
-    #[cfg(target_os = "linux")]
     /// Cannot open the VM file descriptor: {0}
     VmFd(kvm_ioctls::Error),
     #[cfg(target_arch = "x86_64")]
@@ -69,20 +67,28 @@ pub enum VmError {
     #[cfg(target_arch = "x86_64")]
     /// Failed to set KVM vm irqchip: {0}
     VmSetIrqChip(kvm_ioctls::Error),
-    #[cfg(target_os = "linux")]
     /// Cannot configure the microvm: {0}
     VmSetup(kvm_ioctls::Error),
-    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     /// Failed to save the VM's GIC state: {0}
     SaveGic(crate::arch::aarch64::gic::GicError),
-    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     /// Failed to restore the VM's GIC state: {0}
     RestoreGic(crate::arch::aarch64::gic::GicError),
-    #[cfg(target_os = "macos")]
-    /// Failed to create the VM: {0}
-    CreateVm(virt_fwk::Error),
+}
+
+#[cfg(target_os = "macos")]
+#[rustfmt::skip]
+#[derive(Debug, PartialEq, Eq, thiserror::Error, displaydoc::Display)]
+pub enum VmError {
+    /// Failed to start the VM: {0}
+    StartVm,
+    /// Failed to stop the VM: {0}
+    StopVm,
+    /// Failed to pause the VM: {0}
+    PauseVm,
+    /// Failed to resume the VM: {0}
+    ResumeVm,
 }
 
 /// Error type for [`Vm::restore_state`]
@@ -126,16 +132,24 @@ pub struct Vm {
     #[cfg(target_arch = "aarch64")]
     irqchip_handle: Option<GICDevice>,
 }
-/*
+
 #[cfg(target_os = "macos")]
 #[derive(Debug)]
 pub struct Vm {
-    config: VirtualMachineConfiguration,
+    vm: VirtualMachine,
 }
- */
+
+#[cfg(target_os = "macos")]
+impl Vm {
+    /// Create a new `Vm` struct.
+    pub fn new(avf: &Avf) -> Result<Self, VmError> {
+        Ok(avf.create_vm().map_err(|e| VmError::CreateVm(e))?)
+    }
+}
+
+#[cfg(target_os = "linux")]
 /// Contains Vm functions that are usable across CPU architectures
 impl Vm {
-    #[cfg(target_os = "linux")]
     /// Create a new `Vm` struct.
     pub fn new(kvm: &Kvm) -> Result<Self, VmError> {
         // Create fd for interacting with kvm-vm specific functions.
@@ -153,12 +167,6 @@ impl Vm {
         {
             Ok(Vm { fd: vm_fd })
         }
-    }
-
-    #[cfg(target_os = "macos")]
-    /// Create a new `Vm` struct.
-    pub fn new() -> Result<Self, VmError> {
-        Ok(VirtualMachineConfiguration::new(boot_loader, *cpu_count, *memory_size))
     }
 
     #[cfg(target_os = "linux")]

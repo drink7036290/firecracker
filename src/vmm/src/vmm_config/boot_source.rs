@@ -6,6 +6,7 @@ use std::io;
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "linux")]
 /// Default guest kernel command line:
 /// - `reboot=k` shut down the guest on reboot, instead of well... rebooting;
 /// - `panic=1` on panic, reboot after 1 second;
@@ -18,6 +19,9 @@ use serde::{Deserialize, Serialize};
 /// - `i8042.dumbkbd` do not attempt to control kbd state via the i8042 (save boot time).
 pub const DEFAULT_KERNEL_CMDLINE: &str = "reboot=k panic=1 pci=off nomodule 8250.nr_uarts=0 \
                                           i8042.noaux i8042.nomux i8042.nopnp i8042.dumbkbd";
+
+#[cfg(target_os = "macos")]
+pub const DEFAULT_KERNEL_CMDLINE: &str = "console=hvc0 root=/dev/vda rw";
 
 /// Strongly typed data structure used to configure the boot source of the
 /// microvm.
@@ -42,6 +46,7 @@ pub enum BootSourceConfigError {
     InvalidInitrdPath(io::Error),
     /// The kernel command line is invalid: {0}
     InvalidKernelCommandLine(String),
+    #[cfg(target_os = "linux")]
     /// Firecracker's huge pages support is incompatible with initrds.
     HugePagesAndInitRd,
 }
@@ -56,6 +61,7 @@ pub struct BootSource {
     pub builder: Option<BootConfig>,
 }
 
+#[cfg(target_os = "linux")]
 /// Holds the kernel builder (created and validates based on BootSourceConfig).
 #[derive(Debug)]
 pub struct BootConfig {
@@ -67,6 +73,7 @@ pub struct BootConfig {
     pub initrd_file: Option<File>,
 }
 
+#[cfg(target_os = "linux")]
 impl BootConfig {
     /// Creates the BootConfig based on a given configuration.
     pub fn new(cfg: &BootSourceConfig) -> Result<Self, BootSourceConfigError> {
@@ -97,6 +104,31 @@ impl BootConfig {
     }
 }
 
+#[cfg(target_os = "macos")]
+#[derive(Debug)]
+pub struct BootConfig {
+    pub cmdline: String,
+    pub kernel_file: String,
+    pub initrd_file: Option<String>,
+}
+
+#[cfg(target_os = "macos")]
+impl BootConfig {
+    pub fn new(cfg: &BootSourceConfig) -> Result<Self, BootSourceConfigError> {
+        let kernel_file = cfg.kernel_image_path.clone();
+        let initrd_file = cfg.initrd_path.clone();
+        let cmdline =
+            cfg.boot_args.clone().unwrap_or_else(|| DEFAULT_KERNEL_CMDLINE.to_string());
+
+        Ok(Self {
+            cmdline,
+            kernel_file,
+            initrd_file,
+        })
+    }
+}
+
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 pub(crate) mod tests {
     use vmm_sys_util::tempfile::TempFile;

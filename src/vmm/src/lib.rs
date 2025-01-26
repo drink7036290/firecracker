@@ -104,7 +104,6 @@ pub mod mmds;
 #[cfg(target_os = "linux")]
 /// Save/restore utilities.
 pub mod persist;
-#[cfg(target_os = "linux")]
 /// Resource store for configured microVM resources.
 pub mod resources;
 #[cfg(target_os = "linux")]
@@ -324,6 +323,9 @@ pub enum VmmError {
     VmmObserverTeardown(vmm_sys_util::errno::Error),
     /// VMGenID error: {0}
     VMGenID(#[from] VmGenIdError),
+    #[cfg(target_os = "macos")]
+    /// Avf error: {0}
+    Avf(vstate::avf::AvfError),
 }
 
 #[cfg(target_os = "linux")]
@@ -366,132 +368,6 @@ pub enum DumpCpuConfigError {
     NotAllowed(String),
 }
 
-use std::io::{stdin, stdout};
-use virt_fwk::{
-    VirtualMachine,
-    VirtualMachineConfiguration,
-    LinuxBootLoader,
-    DiskImageStorageDeviceAttachment,
-    FileHandleSerialPortAttachment,
-    VirtioConsoleDeviceSerialPortConfiguration,
-};
-
-#[derive(Debug)]
-pub enum HypervisorError {
-    Unsupported,
-    InvalidConfiguration,
-}
-
-pub struct AvfBackend {
-    vm: VirtualMachine,
-}
-
-impl AvfBackend {
-    pub fn new(
-        kernel_path: &str,
-        command_line: &str,
-        rootfs_path: &str,
-        cpu_count: u8,
-        memory_size: u64) -> Result<Self, HypervisorError> {
-
-        if !VirtualMachine::supported() {
-            println!("Apple Virtualization Framework is not supported on this system.");
-            return Err(HypervisorError::Unsupported);
-        }
-
-        let initrd_url = String::new();
-        let boot_loader = LinuxBootLoader::new(&kernel_path, &initrd_url, command_line);
-
-        let config = VirtualMachineConfiguration::new(boot_loader, cpu_count, memory_size);
-
-        // serial port
-        let std_in = stdin();
-        let std_out = stdout();
-        let attachment =
-            FileHandleSerialPortAttachment::new(&std_in, &std_out);
-        let serial_port =
-            VirtioConsoleDeviceSerialPortConfiguration::new_with_attachment(attachment);
-
-        // block devices
-        let block_devices = VirtioBlockDeviceConfiguration::new(DiskImageStorageDeviceAttachment::new(rootfs_path, false));
-        config.set_storage_devices(block_devices);
-
-        // config validation
-        if let Err(msg) = config.validate() {
-            println!("Invalid Configuration: {}", msg);
-            return Err(HypervisorError::InvalidConfiguration);
-        }
-
-        Ok(Self (VirtualMachine::new(&config)))
-    }
-}
-
-impl HypervisorBackend for AvfBackend {
-    fn start_vm(&self) -> Result<(), HypervisorError> {
-        if !self.vm.can_start() {
-            println!("VM can't start!");
-            process::exit(1);
-        }
-
-        println!("Starting VM...");
-        self.vm.start()?;
-        println!("VM started!");
-
-        let termios = get_terminal_attr(&std_in)?;
-        set_raw_mode(&std_in)?;
-
-        let ctrl_c_events = ctrl_channel()?;
-        let state_changes = self.vm.get_state_channel();
-
-        println!("Waiting for VM state changes...");
-        loop {
-            select! {
-                recv(state_changes) -> state => {
-                    match state {
-                        Ok(vz::VirtualMachineState::Running) => println!("Virtual machine is running!"),
-                        Ok(vz::VirtualMachineState::Stopped) => {
-                            println!("Virtual machine has stopped, exiting!");
-                            break;
-                        }
-                        _ => {
-                            println!("Virtual machine state: {:?}", state);
-                        }
-                    }
-                }
-                recv(ctrl_c_events) -> _ => {
-                    set_terminal_attr(&std_in, &termios).expect("Failed to reset tty back to original state!");
-
-                    if self.vm.can_stop() {
-                        let _  = self.vm.stop();
-                    }
-
-                    break;
-                }
-            }
-        }
-
-        println!("\nExiting");
-    }
-
-    fn stop_vm(&self) -> Result<(), HypervisorError> {
-        if self.vm.can_stop() {
-            self.vm.stop()
-        }
-
-        Ok(())
-    }
-}
-
-// TODO
-/// Trait for the hypervisor backend.
-pub trait HypervisorBackend {
-    //fn init_vm(&mut self, config: &VmConfig) -> Result<(), HypervisorError>;
-    fn start_vm(&self) -> Result<(), HypervisorError>;
-    fn stop_vm(&self) -> Result<(), HypervisorError>;
-    //fn pause_vm(&self) -> Result<(), HypervisorError>;
-    // ... etc.
-}
-
 /// Contains the state and associated methods required for the Firecracker VMM.
 #[derive(Debug)]
 pub struct Vmm {
@@ -504,8 +380,7 @@ pub struct Vmm {
     #[cfg(target_os = "linux")]
     kvm: Kvm,
     #[cfg(target_os = "macos")]
-    hypervisor_backend: Box<dyn HypervisorBackend>,
-    #[cfg(target_os = "linux")]
+    avf: Avf,
     vm: Vm,
     #[cfg(target_os = "linux")]
     guest_memory: GuestMemoryMmap,
@@ -569,7 +444,6 @@ impl Vmm {
     pub fn start_vcpus(
         &mut self,
         mut vcpus: Vec<Vcpu>,
-        #[cfg(target_os = "linux")]
         vcpu_seccomp_filter: Arc<BpfProgram>,
     ) -> Result<(), StartVcpusError> {
         let vcpu_count = vcpus.len();
@@ -592,14 +466,13 @@ impl Vmm {
         self.vcpus_handles.reserve(vcpu_count);
 
         for mut vcpu in vcpus.drain(..) {
-            #[cfg(target_os = "linux")]
             vcpu.set_mmio_bus(self.mmio_device_manager.bus.clone());
             #[cfg(target_arch = "x86_64")]
             vcpu.kvm_vcpu
                 .set_pio_bus(self.pio_device_manager.io_bus.clone());
 
             self.vcpus_handles
-                .push(vcpu.start_threaded(#[cfg(target_os = "linux")] vcpu_seccomp_filter.clone(), barrier.clone())?);
+                .push(vcpu.start_threaded(vcpu_seccomp_filter.clone(), barrier.clone())?);
         }
         self.instance_info.state = VmState::Paused;
         // Wait for vCPUs to initialize their TLS before moving forward.
@@ -608,19 +481,42 @@ impl Vmm {
         Ok(())
     }
 
+    #[cfg(target_os = "macos")]
+    pub fn resume_vm(&mut self) -> Result<(), VmmError> {
+        if self.vm.can_resume() {
+            self.vm.resume().map_err(|err| {
+                error!("Failed to resume VM: {}", err);
+                return Err(VmmError::ResumeVm);
+            })
+        }
+
+        if !self.vm.can_start() {
+            println!("VM can't start!");
+            return Err(VmmError::StartVmError);
+        }
+
+        println!("Starting VM...");
+
+        self.vm.start().map_err(|err| {
+            println!("Failed to start VM: {}", err);
+            Err(VmmError::StartVmError)
+        });
+
+        self.instance_info.state = VmState::Running;
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
     /// Sends a resume command to the vCPUs.
     pub fn resume_vm(&mut self) -> Result<(), VmmError> {
-        #[cfg(target_os = "linux")]
         self.mmio_device_manager.kick_devices();
 
-        #[cfg(target_os = "linux")]
         // Send the events.
         self.vcpus_handles
             .iter()
             .try_for_each(|handle| handle.send_event(VcpuEvent::Resume))
             .map_err(|_| VmmError::VcpuMessage)?;
 
-        #[cfg(target_os = "linux")]
         // Check the responses.
         if self
             .vcpus_handles
@@ -631,23 +527,32 @@ impl Vmm {
             return Err(VmmError::VcpuMessage);
         }
 
-        #[cfg(target_os = "macos")]
-        self.vm.can_resume()?; // TODO
-
         self.instance_info.state = VmState::Running;
         Ok(())
     }
 
+    #[cfg(target_os = "macos")]
+    pub fn pause_vm(&mut self) -> Result<(), VmmError> {
+        if self.vm.can_pause() {
+            self.vm.pause().map_err(|err| {
+                error!("Failed to pause VM: {}", err);
+                return Err(VmmError::PauseVm);
+            })
+        }
+
+        self.instance_info.state = VmState::Paused;
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
     /// Sends a pause command to the vCPUs.
     pub fn pause_vm(&mut self) -> Result<(), VmmError> {
-        #[cfg(target_os = "linux")]
         // Send the events.
         self.vcpus_handles
             .iter()
             .try_for_each(|handle| handle.send_event(VcpuEvent::Pause))
             .map_err(|_| VmmError::VcpuMessage)?;
 
-        #[cfg(target_os = "linux")]
         // Check the responses.
         if self
             .vcpus_handles
@@ -1047,6 +952,24 @@ impl Vmm {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    pub fn stop(&mut self, exit_code: FcExitCode) {
+        info!("Vmm is stopping.");
+
+        if self.vm.can_stop() {
+            println!("Stopping VM...");
+
+            self.vm.stop().map_err(|err| {
+                println!("Failed to stop VM: {}", err);
+                return;
+            })
+        }
+
+        // Break the main event loop, propagating the exit code.
+        self.shutdown_exit_code = Some(exit_code);
+    }
+
+    #[cfg(target_os = "linux")]
     /// Signals Vmm to stop and exit.
     pub fn stop(&mut self, exit_code: FcExitCode) {
         // To avoid cycles, all teardown paths take the following route:
@@ -1071,7 +994,6 @@ impl Vmm {
         // We send a "Finish" event.  If a VCPU has already exited, this is the only
         // message it will accept... but running and paused will take it as well.
         // It breaks out of the state machine loop so that the thread can be joined.
-        #[cfg(target_os = "linux")]
         for (idx, handle) in self.vcpus_handles.iter().enumerate() {
             if let Err(err) = handle.send_event(VcpuEvent::Finish) {
                 error!("Failed to send VcpuEvent::Finish to vCPU {}: {}", idx, err);
@@ -1081,15 +1003,7 @@ impl Vmm {
         // the VcpuHandle's Drop trait.  We can trigger that to happen now by clearing the
         // list of handles. Do it here instead of Vmm::Drop to avoid dependency cycles.
         // (Vmm's Drop will also check if this list is empty).
-        #[cfg(target_os = "linux")]
         self.vcpus_handles.clear();
-
-        #[cfg(target_os = "macos")]
-        self.hypervisor_backend.stop_vm()
-            .or_else(|v| {
-                error!("Failed to stop the VM: {}", v);
-                Err(v)
-            });
 
         // Break the main event loop, propagating the Vmm exit-code.
         self.shutdown_exit_code = Some(exit_code);

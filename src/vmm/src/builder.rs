@@ -165,6 +165,43 @@ impl std::convert::From<linux_loader::cmdline::Error> for StartMicrovmError {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn create_vmm_and_vcpus(
+    instance_info: &InstanceInfo,
+    vm_resources: &super::resources::VmResources,
+) -> Result<Vmm, StartMicrovmError> {
+    use self::StartMicrovmError::*;
+
+    let boot_config = vm_resources
+        .boot_source
+        .builder
+        .as_ref()
+        .ok_or(MissingKernelConfig)?;
+
+    let avf = Avf::new(
+        &boot_config.kernel_file,
+        &boot_config.cmdline,
+        vm_resources.machine_config.vcpu_count,
+        vm_resources.machine_config.mem_size_mib)
+        .map_err(VmmError::Avf)
+        .map_err(StartMicrovmError::Internal)?;
+
+    let mut vm = Vm::new(&avf)
+        .map_err(VmmError::Vm)
+        .map_err(StartMicrovmError::Internal)?;
+
+    let vmm = Vmm {
+        events_observer: Some(std::io::stdin()),
+        instance_info: instance_info.clone(),
+        shutdown_exit_code: None,
+        avf,
+        vm,
+    };
+
+    Ok(vmm)
+}
+
+#[cfg(target_os = "linux")]
 #[cfg_attr(target_arch = "aarch64", allow(unused))]
 fn create_vmm_and_vcpus(
     instance_info: &InstanceInfo,
@@ -192,14 +229,12 @@ fn create_vmm_and_vcpus(
         .map_err(VmmError::Vm)
         .map_err(StartMicrovmError::Internal)?;
 
-    #[cfg(target_os = "linux")]
     let vcpus_exit_evt = EventFd::new(libc::EFD_NONBLOCK)
         .map_err(VmmError::EventFd)
         .map_err(Internal)?;
 
     let resource_allocator = ResourceAllocator::new()?;
 
-    #[cfg(target_os = "linux")]
     // Instantiate the MMIO device manager.
     let mmio_device_manager = MMIODeviceManager::new();
 
@@ -243,7 +278,7 @@ fn create_vmm_and_vcpus(
     // Search for `kvm_arch_vcpu_create` in arch/arm/kvm/arm.c.
     #[cfg(target_arch = "aarch64")]
     let vcpus = {
-        let vcpus = create_vcpus(#[cfg(target_os = "linux")] &kvm, &vm, vcpu_count, #[cfg(target_os = "linux")] &vcpus_exit_evt).map_err(Internal)?;
+        let vcpus = create_vcpus(&kvm, &vm, vcpu_count, &vcpus_exit_evt).map_err(Internal)?;
         setup_interrupt_controller(&mut vm, vcpu_count)?;
         vcpus
     };
@@ -252,19 +287,14 @@ fn create_vmm_and_vcpus(
         events_observer: Some(std::io::stdin()),
         instance_info: instance_info.clone(),
         shutdown_exit_code: None,
-        #[cfg(target_os = "linux")]
         kvm,
         vm,
         guest_memory,
-        #[cfg(target_os = "linux")]
         uffd,
         vcpus_handles: Vec::new(),
-        #[cfg(target_os = "linux")]
         vcpus_exit_evt,
         resource_allocator,
-        #[cfg(target_os = "linux")]
         mmio_device_manager,
-        #[cfg(target_arch = "x86_64")]
         pio_device_manager,
         acpi_device_manager,
     };
@@ -272,6 +302,41 @@ fn create_vmm_and_vcpus(
     Ok((vmm, vcpus))
 }
 
+#[cfg(target_os = "macos")]
+pub fn build_microvm_for_boot(
+    instance_info: &InstanceInfo,
+    vm_resources: &super::resources::VmResources,
+) -> Result<Arc<Mutex<Vmm>>, StartMicrovmError> {
+    use self::StartMicrovmError::*;
+
+    let mut vmm = create_vmm_and_vcpus(
+        instance_info,
+        vm_resources,
+    )?;
+
+    attach_block_devices(
+        &mut vmm,
+        vm_resources.block.devices.iter(),
+    )?;
+
+    if let Some(stdin) = vmm.events_observer.as_mut() {
+        // Set raw mode for stdin.
+        stdin.lock().set_raw_mode().inspect_err(|&err| {
+            warn!("Cannot set raw mode for the terminal. {:?}", err);
+        })?;
+
+        // Set non blocking stdin.
+        stdin.lock().set_non_block(true).inspect_err(|&err| {
+            warn!("Cannot set non block for the terminal. {:?}", err);
+        })?;
+    }
+
+    vmm.instance_info.state = VmState::Paused;
+
+    Ok(Arc::new(Mutex::new(vmm)))
+}
+
+#[cfg(target_os = "linux")]
 /// Builds and starts a microVM based on the current Firecracker VmResources configuration.
 ///
 /// The built microVM and all the created vCPUs start off in the paused state.
@@ -281,7 +346,6 @@ pub fn build_microvm_for_boot(
     instance_info: &InstanceInfo,
     vm_resources: &super::resources::VmResources,
     event_manager: &mut EventManager,
-    #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
 ) -> Result<Arc<Mutex<Vmm>>, StartMicrovmError> {
     use self::StartMicrovmError::*;
@@ -332,7 +396,6 @@ pub fn build_microvm_for_boot(
         .map(|vcpu| vcpu.copy_kvm_vcpu_fd(vmm.vm()))
         .collect::<Result<Vec<_>, _>>()?;
 
-    #[cfg(target_os = "linux")]
     // The boot timer device needs to be the first device attached in order
     // to maintain the same MMIO address referenced in the documentation
     // and tests.
@@ -340,19 +403,17 @@ pub fn build_microvm_for_boot(
         attach_boot_timer_device(&mut vmm, request_ts)?;
     }
 
-    #[cfg(target_os = "linux")]
     if let Some(balloon) = vm_resources.balloon.get() {
         attach_balloon_device(&mut vmm, &mut boot_cmdline, balloon, event_manager)?;
     }
 
-    #[cfg(target_os = "linux")]
     attach_block_devices(
         &mut vmm,
         &mut boot_cmdline,
         vm_resources.block.devices.iter(),
         event_manager,
     )?;
-    #[cfg(target_os = "linux")]
+
     attach_net_devices(
         &mut vmm,
         &mut boot_cmdline,
@@ -360,17 +421,14 @@ pub fn build_microvm_for_boot(
         event_manager,
     )?;
 
-    #[cfg(target_os = "linux")]
     if let Some(unix_vsock) = vm_resources.vsock.get() {
         attach_unixsock_vsock_device(&mut vmm, &mut boot_cmdline, unix_vsock, event_manager)?;
     }
 
-    #[cfg(target_os = "linux")]
     if let Some(entropy) = vm_resources.entropy.get() {
         attach_entropy_device(&mut vmm, &mut boot_cmdline, entropy, event_manager)?;
     }
 
-    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     attach_legacy_devices_aarch64(event_manager, &mut vmm, &mut boot_cmdline).map_err(Internal)?;
 
@@ -401,7 +459,6 @@ pub fn build_microvm_for_boot(
         .unwrap()
         .start_vcpus(
             vcpus,
-            #[cfg(target_os = "linux")]
             seccomp_filters
                 .get("vcpu")
                 .ok_or_else(|| MissingSeccompFilters("vcpu".to_string()))?
@@ -410,7 +467,6 @@ pub fn build_microvm_for_boot(
         .map_err(VmmError::VcpuStart)
         .map_err(Internal)?;
 
-    #[cfg(target_os = "linux")]
     // Load seccomp filters for the VMM thread.
     // Execution panics if filters cannot be loaded, use --no-seccomp if skipping filters
     // altogether is the desired behaviour.
@@ -438,12 +494,14 @@ pub fn build_microvm_for_boot(
 pub fn build_and_boot_microvm(
     instance_info: &InstanceInfo,
     vm_resources: &super::resources::VmResources,
+    #[cfg(target_os = "linux")]
     event_manager: &mut EventManager,
     #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
 ) -> Result<Arc<Mutex<Vmm>>, StartMicrovmError> {
     debug!("event_start: build microvm for boot");
-    let vmm = build_microvm_for_boot(instance_info, vm_resources, event_manager, #[cfg(target_os = "linux")] seccomp_filters)?;
+    let vmm = build_microvm_for_boot(instance_info, vm_resources,
+        #[cfg(target_os = "linux")] event_manager, #[cfg(target_os = "linux")] seccomp_filters)?;
     debug!("event_end: build microvm for boot");
     // The vcpus start off in the `Paused` state, let them run.
     debug!("event_start: boot microvm");
@@ -495,6 +553,7 @@ pub enum BuildMicrovmFromSnapshotError {
     VMGenIDUpdate(std::io::Error),
 }
 
+#[cfg(target_os = "linux")]
 /// Builds and starts a microVM based on the provided MicrovmState.
 ///
 /// An `Arc` reference of the built `Vmm` is also plugged in the `EventManager`, while another
@@ -505,9 +564,7 @@ pub fn build_microvm_from_snapshot(
     event_manager: &mut EventManager,
     microvm_state: MicrovmState,
     guest_memory: GuestMemoryMmap,
-    #[cfg(target_os = "linux")]
     uffd: Option<Uffd>,
-    #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
     vm_resources: &mut VmResources,
 ) -> Result<Arc<Mutex<Vmm>>, BuildMicrovmFromSnapshotError> {
@@ -517,7 +574,6 @@ pub fn build_microvm_from_snapshot(
         instance_info,
         event_manager,
         guest_memory,
-        #[cfg(target_os = "linux")]
         uffd,
         vm_resources.machine_config.track_dirty_pages,
         vm_resources.machine_config.vcpu_count,
@@ -570,13 +626,10 @@ pub fn build_microvm_from_snapshot(
         instance_id: &instance_info.id,
     };
 
-    #[cfg(target_os = "linux")]
-    {
     vmm.mmio_device_manager =
         MMIODeviceManager::restore(mmio_ctor_args, &microvm_state.device_states)
             .map_err(MicrovmStateError::RestoreDevices)?;
     vmm.emulate_serial_init()?;
-    }
 
     {
         let acpi_ctor_args = ACPIDeviceManagerConstructorArgs {
@@ -599,7 +652,6 @@ pub fn build_microvm_from_snapshot(
     // Move vcpus to their own threads and start their state machine in the 'Paused' state.
     vmm.start_vcpus(
         vcpus,
-        #[cfg(target_os = "linux")]
         seccomp_filters
             .get("vcpu")
             .ok_or(BuildMicrovmFromSnapshotError::MissingVcpuSeccompFilters)?
@@ -609,7 +661,6 @@ pub fn build_microvm_from_snapshot(
     let vmm = Arc::new(Mutex::new(vmm));
     event_manager.add_subscriber(vmm.clone());
 
-    #[cfg(target_os = "linux")]
     // Load seccomp filters for the VMM thread.
     // Keep this as the last step of the building process.
     crate::seccomp::apply_filter(
@@ -617,12 +668,12 @@ pub fn build_microvm_from_snapshot(
             .get("vmm")
             .ok_or(BuildMicrovmFromSnapshotError::MissingVmmSeccompFilters)?,
     )?;
-    #[cfg(target_os = "linux")]
     debug!("event_end: build microvm from snapshot");
 
     Ok(vmm)
 }
 
+#[cfg(target_os = "linux")]
 fn load_kernel(
     boot_config: &BootConfig,
     guest_memory: &GuestMemoryMmap,
@@ -653,6 +704,7 @@ fn load_kernel(
     Ok(entry_addr.kernel_load)
 }
 
+#[cfg(target_os = "linux")]
 fn load_initrd_from_config(
     boot_cfg: &BootConfig,
     vm_memory: &GuestMemoryMmap,
@@ -668,6 +720,7 @@ fn load_initrd_from_config(
     })
 }
 
+#[cfg(target_os = "linux")]
 /// Loads the initrd from a file into the given memory slice.
 ///
 /// * `vm_memory` - The guest memory the initrd is written to.
@@ -794,26 +847,24 @@ fn attach_legacy_devices_aarch64(
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 fn create_vcpus(
-    #[cfg(target_os = "linux")]
     kvm: &Kvm,
     vm: &Vm,
     vcpu_count: u8,
-    #[cfg(target_os = "linux")]
     exit_evt: &EventFd,
 ) -> Result<Vec<Vcpu>, VmmError> {
     let mut vcpus = Vec::with_capacity(vcpu_count as usize);
     for cpu_idx in 0..vcpu_count {
-        #[cfg(target_os = "linux")]
         let exit_evt = exit_evt.try_clone().map_err(VmmError::EventFd)?;
-        let vcpu = Vcpu::new(cpu_idx, vm, #[cfg(target_os = "linux")] kvm, #[cfg(target_os = "linux")] exit_evt).map_err(VmmError::VcpuCreate)?;
+        let vcpu = Vcpu::new(cpu_idx, vm, kvm, exit_evt).map_err(VmmError::VcpuCreate)?;
         vcpus.push(vcpu);
     }
     Ok(vcpus)
 }
 
+#[cfg(target_os = "linux")]
 /// Configures the system for booting Linux.
-#[cfg_attr(target_arch = "aarch64", allow(unused))]
 pub fn configure_system_for_boot(
     vmm: &mut Vmm,
     vcpus: &mut [Vcpu],
@@ -908,7 +959,6 @@ pub fn configure_system_for_boot(
         )?;
     }
 
-    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     {
         let optional_capabilities = vmm.kvm.optional_capabilities();
@@ -1056,6 +1106,34 @@ fn attach_block_devices<'a, I: Iterator<Item = &'a Arc<Mutex<Block>>> + Debug>(
         )?;
     }
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn attach_block_devices<'a, I: Iterator<Item = &'a Arc<Mutex<Block>>> + Debug>(
+    vmm: &mut Vmm,
+    blocks: I,
+) -> Result<(), StartMicrovmError> {
+    let mut block_devices: Vec<VirtioBlockDeviceConfiguration> = Vec::new();
+
+    for block in blocks {
+        let locked = block.lock().unwrap();
+        match &*locked {
+            Block::Virtio(virtio_block) => {
+                let path_on_host = virtio_block.config().path_on_host.clone();
+                let attachment = DiskImageStorageDeviceAttachment::new(&path_on_host, false);
+
+                block_devices.push(VirtioBlockDeviceConfiguration::new(attachment));
+            }
+
+            Block::VhostUser(_) => {
+                return Err(StartMicrovmError::Unsupported(
+                    "vhost-user block not supported on AVF".to_string(),
+                ));
+            }
+        }
+    }
+
+    vmm.avf.attach_block_devices(block_devices).map_err(AttachBlockDevice)
 }
 
 #[cfg(target_os = "linux")]

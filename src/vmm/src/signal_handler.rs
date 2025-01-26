@@ -174,6 +174,7 @@ pub fn register_signal_handlers() -> vmm_sys_util::errno::Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 mod tests {
     #![allow(clippy::undocumented_unsafe_blocks)]

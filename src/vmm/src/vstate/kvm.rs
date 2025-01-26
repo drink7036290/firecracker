@@ -32,7 +32,7 @@ pub enum KvmError {
     NotEnoughMemorySlots,
 }
 
-/// Struct with kvm fd and kvm associated paramenters.
+/// Struct with kvm fd and kvm associated parameters.
 #[derive(Debug)]
 pub struct Kvm {
     /// KVM fd.

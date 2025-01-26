@@ -1,9 +1,6 @@
 [workspace]
 members = ["src/*"]
-default-members = [
-    "src/vmm",
-    #"src/firecracker",
-]
+default-members = ["src/vmm", "src/firecracker/src"]
 resolver = "2"
 
 [workspace.lints.rust]

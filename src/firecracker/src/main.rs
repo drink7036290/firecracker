@@ -1,9 +1,13 @@
 // Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(target_os = "linux")]
 mod api_server;
+#[cfg(target_os = "linux")]
 mod api_server_adapter;
+#[cfg(target_os = "linux")]
 mod gen;
+#[cfg(target_os = "linux")]
 mod metrics;
 #[cfg(target_os = "linux")]
 mod seccomp;
@@ -15,25 +19,34 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::{io, panic};
 
+#[cfg(target_os = "linux")]
 use api_server_adapter::ApiServerError;
+#[cfg(target_os = "linux")]
 use event_manager::SubscriberOps;
 #[cfg(target_os = "linux")]
 use seccomp::FilterError;
 use utils::arg_parser::{ArgParser, Argument};
 use utils::validators::validate_instance_id;
+#[cfg(target_os = "linux")]
 use vmm::arch::host_page_size;
 use vmm::builder::StartMicrovmError;
+#[cfg(target_os = "linux")]
 use vmm::logger::{
     debug, error, info, LoggerConfig, ProcessTimeReporter, StoreMetric, LOGGER, METRICS,
 };
+#[cfg(target_os = "linux")]
 use vmm::persist::SNAPSHOT_VERSION;
 use vmm::resources::VmResources;
 #[cfg(target_os = "linux")]
 use vmm::seccomp::BpfThreadMap;
+#[cfg(target_os = "linux")]
 use vmm::signal_handler::register_signal_handlers;
+#[cfg(target_os = "linux")]
 use vmm::snapshot::{Snapshot, SnapshotError};
 use vmm::vmm_config::instance_info::{InstanceInfo, VmState};
+#[cfg(target_os = "linux")]
 use vmm::vmm_config::metrics::{init_metrics, MetricsConfig, MetricsConfigError};
+#[cfg(target_os = "linux")]
 use vmm::{EventManager, FcExitCode, HTTP_MAX_PAYLOAD_SIZE};
 use vmm_sys_util::terminal::Terminal;
 
@@ -43,31 +56,41 @@ use crate::seccomp::SeccompConfig;
 // The reason we place default API socket under /run is that API socket is a
 // runtime file.
 // see https://refspecs.linuxfoundation.org/FHS_3.0/fhs/ch03s15.html for more information.
+#[cfg(target_os = "linux")]
 const DEFAULT_API_SOCK_PATH: &str = "/run/firecracker.socket";
 const FIRECRACKER_VERSION: &str = env!("CARGO_PKG_VERSION");
+#[cfg(target_os = "linux")]
 const MMDS_CONTENT_ARG: &str = "metadata";
 
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 enum MainError {
+    #[cfg(target_os = "linux")]
     /// Failed to set the logger: {0}
     SetLogger(vmm::logger::LoggerInitError),
+    #[cfg(target_os = "linux")]
     /// Failed to register signal handlers: {0}
     RegisterSignalHandlers(#[source] vmm_sys_util::errno::Error),
     /// Arguments parsing error: {0} \n\nFor more information try --help.
     ParseArguments(#[from] utils::arg_parser::UtilsArgParserError),
+    #[cfg(target_os = "linux")]
     /// When printing Snapshot Data format: {0}
     PrintSnapshotDataFormat(#[from] SnapshotVersionError),
+    #[cfg(target_os = "linux")]
     /// Invalid value for logger level: {0}.Possible values: [Error, Warning, Info, Debug]
     InvalidLogLevel(vmm::logger::LevelFilterFromStrError),
+    #[cfg(target_os = "linux")]
     /// Could not initialize logger: {0}
     LoggerInitialization(vmm::logger::LoggerUpdateError),
+    #[cfg(target_os = "linux")]
     /// Could not initialize metrics: {0}
     MetricsInitialization(MetricsConfigError),
     #[cfg(target_os = "linux")]
     /// Seccomp error: {0}
     SeccompFilter(FilterError),
+    #[cfg(target_os = "linux")]
     /// Failed to resize fd table: {0}
     ResizeFdtable(ResizeFdTableError),
+    #[cfg(target_os = "linux")]
     /// RunWithApiError error: {0}
     RunWithApi(ApiServerError),
     /// RunWithoutApiError error: {0}
@@ -111,6 +134,7 @@ fn main() -> ExitCode {
 }
 
 fn main_exec() -> Result<(), MainError> {
+    #[cfg(target_os = "linux")]
     // Initialize the logger.
     LOGGER.init().map_err(MainError::SetLogger)?;
 
@@ -136,16 +160,20 @@ fn main_exec() -> Result<(), MainError> {
             );
         }
 
+        #[cfg(target_os = "linux")]
         METRICS.vmm.panic_count.store(1);
 
+        #[cfg(target_os = "linux")]
         // Write the metrics before aborting.
         if let Err(err) = METRICS.write() {
             error!("Failed to write metrics while panicking: {}", err);
         }
     }));
 
+    #[cfg(target_os = "linux")]
     let http_max_payload_size_str = HTTP_MAX_PAYLOAD_SIZE.to_string();
 
+    #[cfg(target_os = "linux")]
     let mut arg_parser =
         ArgParser::new()
             .arg(
@@ -159,9 +187,7 @@ fn main_exec() -> Result<(), MainError> {
                     .takes_value(true)
                     .default_value(vmm::logger::DEFAULT_INSTANCE_ID)
                     .help("MicroVM unique identifier."),
-            );
-    #[cfg(target_os = "linux")]
-    arg_parser = arg_parser
+            )
             .arg(
                 Argument::new("seccomp-filter")
                     .takes_value(true)
@@ -179,8 +205,7 @@ fn main_exec() -> Result<(), MainError> {
                         "Optional parameter which allows starting and using a microVM without \
                          seccomp filtering. Not recommended.",
                     ),
-            );
-    arg_parser = arg_parser
+            )
             .arg(
                 Argument::new("start-time-us").takes_value(true).help(
                     "Process start time (wall clock, microseconds). This parameter is optional.",
@@ -270,47 +295,77 @@ fn main_exec() -> Result<(), MainError> {
                     .help("Mmds data store limit, in bytes."),
             );
 
+    let mut arg_parser =
+        ArgParser::new()
+            .arg(
+                Argument::new("config-file")
+                    .takes_value(true)
+                    .help("Path to a file that contains the microVM configuration in JSON format."),
+            )
+            .arg(
+                Argument::new("no-api")
+                    .takes_value(false)
+                    .requires("config-file")
+                    .help(
+                        "Optional parameter which allows starting and using a microVM without an \
+                         active API socket.",
+                    ),
+            );
+
     arg_parser.parse_from_cmdline()?;
     let arguments = arg_parser.arguments();
 
+    #[cfg(target_os = "linux")]
     if arguments.flag_present("help") {
         println!("Firecracker v{}\n", FIRECRACKER_VERSION);
         println!("{}", arg_parser.formatted_help());
         return Ok(());
     }
 
+    #[cfg(target_os = "linux")]
     if arguments.flag_present("version") {
         println!("Firecracker v{}\n", FIRECRACKER_VERSION);
         return Ok(());
     }
 
+    #[cfg(target_os = "linux")]
     if arguments.flag_present("snapshot-version") {
         println!("v{SNAPSHOT_VERSION}");
         return Ok(());
     }
 
+    #[cfg(target_os = "linux")]
     if let Some(snapshot_path) = arguments.single_value("describe-snapshot") {
         print_snapshot_data_format(snapshot_path)?;
         return Ok(());
     }
 
+    #[cfg(target_os = "linux")]
     // It's safe to unwrap here because the field's been provided with a default value.
     let instance_id = arguments.single_value("id").unwrap();
+    #[cfg(target_os = "linux")]
     validate_instance_id(instance_id.as_str()).expect("Invalid instance ID");
 
+    #[cfg(target_os = "linux")]
     // Apply the logger configuration.
     vmm::logger::INSTANCE_ID
         .set(String::from(instance_id))
         .unwrap();
+    #[cfg(target_os = "linux")]
     let log_path = arguments.single_value("log-path").map(PathBuf::from);
+    #[cfg(target_os = "linux")]
     let level = arguments
         .single_value("level")
         .map(|s| vmm::logger::LevelFilter::from_str(s))
         .transpose()
         .map_err(MainError::InvalidLogLevel)?;
+    #[cfg(target_os = "linux")]
     let show_level = arguments.flag_present("show-level").then_some(true);
+    #[cfg(target_os = "linux")]
     let show_log_origin = arguments.flag_present("show-log-origin").then_some(true);
+    #[cfg(target_os = "linux")]
     let module = arguments.single_value("module").cloned();
+    #[cfg(target_os = "linux")]
     LOGGER
         .update(LoggerConfig {
             log_path,
@@ -322,11 +377,13 @@ fn main_exec() -> Result<(), MainError> {
         .map_err(MainError::LoggerInitialization)?;
     info!("Running Firecracker v{FIRECRACKER_VERSION}");
 
+    #[cfg(target_os = "linux")]
     register_signal_handlers().map_err(MainError::RegisterSignalHandlers)?;
 
     #[cfg(target_arch = "aarch64")]
     enable_ssbd_mitigation();
 
+    #[cfg(target_os = "linux")]
     if let Err(err) = resize_fdtable() {
         match err {
             // These errors are non-critical: In the worst case we have worse snapshot restore
@@ -352,6 +409,7 @@ fn main_exec() -> Result<(), MainError> {
         app_name: "Firecracker".to_string(),
     };
 
+    #[cfg(target_os = "linux")]
     if let Some(metrics_path) = arguments.single_value("metrics-path") {
         let metrics_config = MetricsConfig {
             metrics_path: PathBuf::from(metrics_path),
@@ -372,13 +430,17 @@ fn main_exec() -> Result<(), MainError> {
         .map(fs::read_to_string)
         .map(|x| x.expect("Unable to open or read from the configuration file"));
 
+    #[cfg(target_os = "linux")]
     let metadata_json = arguments
         .single_value(MMDS_CONTENT_ARG)
         .map(fs::read_to_string)
         .map(|x| x.expect("Unable to open or read from the mmds content file"));
 
+    #[cfg(target_os = "linux")]
     let boot_timer_enabled = arguments.flag_present("boot-timer");
+    #[cfg(target_os = "linux")]
     let api_enabled = !arguments.flag_present("no-api");
+    #[cfg(target_os = "linux")]
     let api_payload_limit = arg_parser
         .arguments()
         .single_value("http-api-max-payload-size")
@@ -389,6 +451,7 @@ fn main_exec() -> Result<(), MainError> {
         // Safe to unwrap as we provide a default value.
         .unwrap();
 
+    #[cfg(target_os = "linux")]
     // If the mmds size limit is not explicitly configured, default to using the
     // `http-api-max-payload-size` value.
     let mmds_size_limit = arg_parser
@@ -400,6 +463,7 @@ fn main_exec() -> Result<(), MainError> {
         })
         .unwrap_or_else(|| api_payload_limit);
 
+    #[cfg(target_os = "linux")]
     if api_enabled {
         let bind_path = arguments
             .single_value("api-sock")
@@ -425,7 +489,6 @@ fn main_exec() -> Result<(), MainError> {
             ProcessTimeReporter::new(start_time_us, start_time_cpu_us, parent_cpu_time_us);
 
         api_server_adapter::run_with_api(
-            #[cfg(target_os = "linux")]
             &mut seccomp_filters,
             vmm_config_json,
             bind_path,
@@ -438,13 +501,11 @@ fn main_exec() -> Result<(), MainError> {
         )
         .map_err(MainError::RunWithApi)
     } else {
-        #[cfg(target_os = "linux")]
         let seccomp_filters: BpfThreadMap = seccomp_filters
             .into_iter()
             .filter(|(k, _)| k != "api")
             .collect();
         run_without_api(
-            #[cfg(target_os = "linux")]
             &seccomp_filters,
             vmm_config_json,
             instance_info,
@@ -454,6 +515,13 @@ fn main_exec() -> Result<(), MainError> {
         )
         .map_err(MainError::RunWithoutApiError)
     }
+
+    #[cfg(target_os = "macos")]
+    run_without_api(
+        vmm_config_json,
+        instance_info,
+    )
+    .map_err(MainError::RunWithoutApiError)
 }
 
 /// Attempts to resize the processes file descriptor table to match RLIMIT_NOFILE or 2048 if no
@@ -567,25 +635,26 @@ pub enum BuildFromJsonError {
 
 // Configure and start a microVM as described by the command-line JSON.
 fn build_microvm_from_json(
-    #[cfg(target_os = "linux")]
-    seccomp_filters: &BpfThreadMap,
-    event_manager: &mut EventManager,
+    #[cfg(target_os = "linux")] seccomp_filters: &BpfThreadMap,
+    #[cfg(target_os = "linux")] event_manager: &mut EventManager,
     config_json: String,
     instance_info: InstanceInfo,
-    boot_timer_enabled: bool,
-    mmds_size_limit: usize,
-    metadata_json: Option<&str>,
+    #[cfg(target_os = "linux")] boot_timer_enabled: bool,
+    #[cfg(target_os = "linux")] mmds_size_limit: usize,
+    #[cfg(target_os = "linux")] metadata_json: Option<&str>,
 ) -> Result<(VmResources, Arc<Mutex<vmm::Vmm>>), BuildFromJsonError> {
     let mut vm_resources =
-        VmResources::from_json(&config_json, &instance_info, mmds_size_limit, metadata_json)
+        VmResources::from_json(&config_json, &instance_info,
+            #[cfg(target_os = "linux")] mmds_size_limit,
+            #[cfg(target_os = "linux")] metadata_json)
             .map_err(BuildFromJsonError::ParseFromJson)?;
+    #[cfg(target_os = "linux")]
     vm_resources.boot_timer = boot_timer_enabled;
     let vmm = vmm::builder::build_and_boot_microvm(
         &instance_info,
         &vm_resources,
-        event_manager,
-        #[cfg(target_os = "linux")]
-        seccomp_filters,
+        #[cfg(target_os = "linux")] event_manager,
+        #[cfg(target_os = "linux")] seccomp_filters,
     )
     .map_err(BuildFromJsonError::StartMicroVM)?;
 
@@ -602,8 +671,8 @@ enum RunWithoutApiError {
     BuildMicroVMFromJson(BuildFromJsonError),
 }
 
+#[cfg(target_os = "linux")]
 fn run_without_api(
-    #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
     config_json: Option<String>,
     instance_info: InstanceInfo,
@@ -619,7 +688,6 @@ fn run_without_api(
 
     // Build the microVm. We can ignore VmResources since it's not used without api.
     let (_, vmm) = build_microvm_from_json(
-        #[cfg(target_os = "linux")]
         seccomp_filters,
         &mut event_manager,
         // Safe to unwrap since '--no-api' requires this to be set.
@@ -649,5 +717,115 @@ fn run_without_api(
             None => continue,
         }
     }
+
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+use crossbeam_channel::{bounded, select, Receiver};
+
+#[cfg(target_os = "macos")]
+fn run_without_api(
+    config_json: Option<String>,
+    instance_info: InstanceInfo,
+) -> Result<(), RunWithoutApiError> {
+    // Build the microVm. We can ignore VmResources since it's not used without api.
+    let (_, vmm) = build_microvm_from_json(
+        config_json.unwrap(),
+        instance_info,
+    )
+    .map_err(RunWithoutApiError::BuildMicroVMFromJson)?;
+
+    let std_in = stdin();
+    let termios = get_terminal_attr(&std_in)?;
+    set_raw_mode(&std_in)?;
+
+    let ctrl_c_events = ctrl_channel()?;
+    let state_changes = self.vm.get_state_channel();
+
+    println!("Waiting for VM state changes...");
+    loop {
+        select! {
+            recv(state_changes) -> state => {
+                match state {
+                    Ok(VirtualMachineState::Running) => println!("Virtual machine is running!"),
+                    Ok(VirtualMachineState::Stopped) => {
+                        println!("Virtual machine has stopped, exiting!");
+                        break;
+                    }
+                    _ => {
+                        println!("Virtual machine state: {:?}", state);
+                    }
+                }
+            }
+            recv(ctrl_c_events) -> _ => {
+                set_terminal_attr(&std_in, &termios).expect("Failed to reset tty back to original state!");
+
+                vmm.stop(FcExitCode::Ok);
+
+                break;
+            }
+        }
+    }
+
+    println!("\nExiting");
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+use std::{io, mem, os::fd::AsRawFd};
+
+#[cfg(target_os = "macos")]
+{
+// Support functions for converting libc return values to io errors {
+trait IsMinusOne {
+    fn is_minus_one(&self) -> bool;
+}
+
+macro_rules! impl_is_minus_one {
+    ($($t:ident)*) => ($(impl IsMinusOne for $t {
+        fn is_minus_one(&self) -> bool {
+            *self == -1
+        }
+    })*)
+}
+
+impl_is_minus_one! { i8 i16 i32 i64 isize }
+
+fn cvt<T: IsMinusOne>(t: T) -> io::Result<T> {
+    if t.is_minus_one() {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(t)
+    }
+}
+
+pub fn get_terminal_attr(fd: &impl AsRawFd) -> io::Result<libc::termios> {
+    unsafe {
+        let mut termios = mem::zeroed();
+        cvt(libc::tcgetattr(fd.as_raw_fd(), &mut termios))?;
+        Ok(termios)
+    }
+}
+
+pub fn set_terminal_attr(fd: &impl AsRawFd, termios: &libc::termios) -> io::Result<()> {
+    cvt(unsafe { libc::tcsetattr(fd.as_raw_fd(), libc::TCSANOW, termios) }).and(Ok(()))
+}
+
+pub fn set_raw_mode(fd: &impl AsRawFd) -> io::Result<()> {
+    let mut attr = get_terminal_attr(fd).unwrap();
+
+    // Put stdin into raw mode, disabling local echo, input canonicalization,
+    // and CR-NL mapping.
+    attr.c_iflag &= !libc::ICRNL;
+    attr.c_lflag &= !(libc::ICANON | libc::ECHO);
+
+    attr.c_cc[libc::VMIN] = 1;
+    attr.c_cc[libc::VTIME] = 0;
+
+    set_terminal_attr(fd, &attr).unwrap();
+
+    Ok(())
+}
 }

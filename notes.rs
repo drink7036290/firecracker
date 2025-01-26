@@ -32,11 +32,9 @@ any #[cfg(test)]
 *   setup_serial_device
 *   mmio_device_manager
 *   vcpus_exit_evt
-*   attach_virtio_device
 *   attach_boot_timer_device
 *   attach_legacy_devices_aarch64
 *   attach_entropy_device
-*   attach_block_devices
 *   attach_net_devices
 *   attach_unixsock_vsock_device
 *   attach_balloon_device
@@ -45,7 +43,7 @@ any #[cfg(test)]
 update_block_rate_limiter
 update_vhost_user_block_config
 update_net_rate_limiters
-RuntimeApiController
+
 
 *   emulate_serial_init
 *   EmulateSerialInit
@@ -56,43 +54,82 @@ latest_balloon_stats
 update_balloon_config
 update_balloon_stats_config
 
-#=========
 event-manager
     MutEventSubscriber
     #replaced with FileHandleSerialPortAttachment
 
+rpc_interface
+
+#=========
+Parse JSON → produce a VmmConfig.
+Validate/transform that VmmConfig → produce a VmResources.
+Use VmResources in build_microvm → create the actual microVM.
 #=========
 
-#![cfg_attr(not(target_os = "linux"), allow(dead_code))]
+[Preserve]
 
-#[cfg(all(test, target_os = "linux"))]
+vmm/src/vmm_config/drive.rs
+*    BlockDeviceConfig
+vmm/src/devices/virtio/block/device.rs
+    Block
+vmm/src/vmm_config/boot_source.rs
+*    BootSourceConfig
+*    BootConfig
+
+vmm/src/vmm_config/machine_config.rs
+*    MachineConfigError
+*    MachineConfig
+
+firecracker/src/main.rs
+*    main_exec()
+*    run_without_api()
+*    build_microvm_from_json()  # server side if no-api
+*    BuildFromJsonError
+
+vmm/src/resources.rs
+*    VmmConfig
+*    VmResources
+*        from_json()
+*    ResourcesError
+
+Vmm/src/builder.rs
+*    build_and_boot_microvm()
+^        build_microvm_for_boot()
+*            load_kernel()
+*            load_initrd_from_config()
+*                load_initrd()
+^            create_vmm_and_vcpus()
+*                create_vcpus()
+^            attach_block_devices()
+*            configure_system_for_boot()
+    vmm.resume_vm()
+Vmm
+	instance_info
+    kvm: Kvm,
+    avf: Avf,
+    vm: Vm,
+	version()
+	resume_vm()
+	pause_vm()
+	stop()
+Vm # per vm content, vmm/src/vstate/vm.rs
+
+#=========
 
 #[cfg(target_os = "linux")]
 
-#[cfg(not(target_os = "linux"))]
-fn main() {
-    // On macOS or other platforms, this is a no-op
-}
-
 #=========
-cargo build --target aarch64-apple-darwin
 
-.arg(
-    Argument::new("config-file")
-        .takes_value(true)
-        .help("Path to a file that contains the microVM configuration in JSON format."),
-)
-.arg(
-    Argument::new("no-api")
-        .takes_value(false)
-        .requires("config-file")
-        .help(
-            "Optional parameter which allows starting and using a microVM without an \
-             active API socket.",
-        ),
-)
+cargo build --target aarch64-apple-darwin --bin firecracker
 
---no-api --config-file macos.json
+ARCH="aarch64"
+
+mkdir -p ../firecracker_run
+cp build/cargo_target/$ARCH-unknown-linux-musl/debug/firecracker ../firecracker_run/
+
+cd ../firecracker_run
+codesign -f --entitlement ./firecracker.entitlements -s - ./firecracker
+sudo strace -ff -o fc-strace.log ./firecracker --no-api --config-file macos.json
 
 #=========
 
@@ -116,21 +153,6 @@ macos.json
         ...
     },
 }
-
-
-#=========
-
-#sudo systemctl start docker
-#tools/devtool checkenv
-#tools/devtool build # DO NOT run as sudo, as the build/ dir is owned by root and can't be accessed by containers
-
-rustup component add --toolchain 1.83.0-aarch64-apple-darwin rustfmt
-cargo build
-
-ARCH="aarch64"
-
-mkdir -p ../firecracker_run
-cp build/cargo_target/$ARCH-unknown-linux-musl/debug/firecracker ../firecracker_run/
 
 # =================================
 

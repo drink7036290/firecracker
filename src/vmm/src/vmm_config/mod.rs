@@ -23,7 +23,6 @@ pub mod drive;
 #[cfg(target_os = "linux")]
 /// Wrapper for configuring the entropy device attached to the microVM.
 pub mod entropy;
-#[cfg(target_os = "linux")]
 /// Wrapper over the microVM general information attached to the microVM.
 pub mod instance_info;
 /// Wrapper for configuring the memory and CPU of the microVM.

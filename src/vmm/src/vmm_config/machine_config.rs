@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
+#[cfg(target_os = "linux")]
 use crate::cpu_config::templates::{CpuTemplateType, CustomCpuTemplate, StaticCpuTemplate};
 
 /// The default memory size of the VM, in MiB.
@@ -43,6 +43,8 @@ pub enum MachineConfigError {
 pub enum MachineConfigError {
     /// The memory size (MiB) is either 0, or not a multiple of the configured page size.
     InvalidMemorySize,
+    /// The number of vCPUs must be greater than 0, less than {MAX_SUPPORTED_VCPUS:} and must be 1 or an even number if SMT is enabled.
+    InvalidVcpuCount,
 }
 
 #[cfg(target_os = "linux")]
@@ -177,15 +179,18 @@ where
     template.serialize(serializer)
 }
 
-#[cfg(target_os = "linux")]
 impl Default for MachineConfig {
     fn default() -> Self {
         Self {
             vcpu_count: 1,
             mem_size_mib: DEFAULT_MEM_SIZE_MIB,
+            #[cfg(target_os = "linux")]
             smt: false,
+            #[cfg(target_os = "linux")]
             cpu_template: None,
+            #[cfg(target_os = "linux")]
             track_dirty_pages: false,
+            #[cfg(target_os = "linux")]
             huge_pages: HugePageConfig::None,
             #[cfg(feature = "gdb")]
             gdb_socket_path: None,
@@ -203,7 +208,6 @@ impl Default for MachineConfig {
     }
 }
 
-#[cfg(target_os = "linux")]
 /// Struct used in PATCH `/machine-config` API call.
 /// Used to update `MachineConfig` in `VmResources`.
 /// This struct mirrors all the fields in `MachineConfig`.
@@ -219,15 +223,19 @@ pub struct MachineConfigUpdate {
     /// The memory size in MiB.
     #[serde(default)]
     pub mem_size_mib: Option<usize>,
+    #[cfg(target_os = "linux")]
     /// Enables or disabled SMT.
     #[serde(default)]
     pub smt: Option<bool>,
+    #[cfg(target_os = "linux")]
     /// A CPU template that it is used to filter the CPU features exposed to the guest.
     #[serde(default)]
     pub cpu_template: Option<StaticCpuTemplate>,
+    #[cfg(target_os = "linux")]
     /// Enables or disables dirty page tracking. Enabling allows incremental snapshots.
     #[serde(default)]
     pub track_dirty_pages: Option<bool>,
+    #[cfg(target_os = "linux")]
     /// Configures what page size Firecracker should use to back guest memory.
     #[serde(default)]
     pub huge_pages: Option<HugePageConfig>,
@@ -237,7 +245,6 @@ pub struct MachineConfigUpdate {
     pub gdb_socket_path: Option<String>,
 }
 
-#[cfg(target_os = "linux")]
 impl MachineConfigUpdate {
     /// Checks if the update request contains any data.
     /// Returns `true` if all fields are set to `None` which means that there is nothing
@@ -247,15 +254,18 @@ impl MachineConfigUpdate {
     }
 }
 
-#[cfg(target_os = "linux")]
 impl From<MachineConfig> for MachineConfigUpdate {
     fn from(cfg: MachineConfig) -> Self {
         MachineConfigUpdate {
             vcpu_count: Some(cfg.vcpu_count),
             mem_size_mib: Some(cfg.mem_size_mib),
+            #[cfg(target_os = "linux")]
             smt: Some(cfg.smt),
+            #[cfg(target_os = "linux")]
             cpu_template: cfg.static_template(),
+            #[cfg(target_os = "linux")]
             track_dirty_pages: Some(cfg.track_dirty_pages),
+            #[cfg(target_os = "linux")]
             huge_pages: Some(cfg.huge_pages),
             #[cfg(feature = "gdb")]
             gdb_socket_path: cfg.gdb_socket_path,
@@ -263,13 +273,14 @@ impl From<MachineConfig> for MachineConfigUpdate {
     }
 }
 
-#[cfg(target_os = "linux")]
 impl MachineConfig {
+    #[cfg(target_os = "linux")]
     /// Sets cpu template field to `CpuTemplateType::Custom(cpu_template)`.
     pub fn set_custom_cpu_template(&mut self, cpu_template: CustomCpuTemplate) {
         self.cpu_template = Some(CpuTemplateType::Custom(cpu_template));
     }
 
+    #[cfg(target_os = "linux")]
     fn static_template(&self) -> Option<StaticCpuTemplate> {
         match self.cpu_template {
             Some(CpuTemplateType::Static(template)) => Some(template),
@@ -288,8 +299,10 @@ impl MachineConfig {
     ) -> Result<MachineConfig, MachineConfigError> {
         let vcpu_count = update.vcpu_count.unwrap_or(self.vcpu_count);
 
+        #[cfg(target_os = "linux")]
         let smt = update.smt.unwrap_or(self.smt);
 
+        #[cfg(target_os = "linux")]
         #[cfg(target_arch = "aarch64")]
         if smt {
             return Err(MachineConfigError::SmtNotSupported);
@@ -299,6 +312,7 @@ impl MachineConfig {
             return Err(MachineConfigError::InvalidVcpuCount);
         }
 
+        #[cfg(target_os = "linux")]
         // If SMT is enabled or is to be enabled in this call
         // only allow vcpu count to be 1 or even.
         if smt && vcpu_count > 1 && vcpu_count % 2 == 1 {
@@ -306,12 +320,15 @@ impl MachineConfig {
         }
 
         let mem_size_mib = update.mem_size_mib.unwrap_or(self.mem_size_mib);
+        #[cfg(target_os = "linux")]
         let page_config = update.huge_pages.unwrap_or(self.huge_pages);
 
+        #[cfg(target_os = "linux")]
         if mem_size_mib == 0 || !page_config.is_valid_mem_size(mem_size_mib) {
             return Err(MachineConfigError::InvalidMemorySize);
         }
 
+        #[cfg(target_os = "linux")]
         let cpu_template = match update.cpu_template {
             None => self.cpu_template.clone(),
             Some(StaticCpuTemplate::None) => None,
@@ -321,9 +338,13 @@ impl MachineConfig {
         Ok(MachineConfig {
             vcpu_count,
             mem_size_mib,
+            #[cfg(target_os = "linux")]
             smt,
+            #[cfg(target_os = "linux")]
             cpu_template,
+            #[cfg(target_os = "linux")]
             track_dirty_pages: update.track_dirty_pages.unwrap_or(self.track_dirty_pages),
+            #[cfg(target_os = "linux")]
             huge_pages: page_config,
             #[cfg(feature = "gdb")]
             gdb_socket_path: update.gdb_socket_path.clone(),

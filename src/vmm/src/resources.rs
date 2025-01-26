@@ -7,32 +7,47 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "linux")]
 use crate::cpu_config::templates::CustomCpuTemplate;
+#[cfg(target_os = "linux")]
 use crate::device_manager::persist::SharedDeviceType;
+#[cfg(target_os = "linux")]
 use crate::logger::{info, log_dev_preview_warning};
+#[cfg(target_os = "linux")]
 use crate::mmds;
+#[cfg(target_os = "linux")]
 use crate::mmds::data_store::{Mmds, MmdsVersion};
+#[cfg(target_os = "linux")]
 use crate::mmds::ns::MmdsNetworkStack;
+#[cfg(target_os = "linux")]
 use crate::utils::net::ipv4addr::is_link_local_valid;
+#[cfg(target_os = "linux")]
 use crate::vmm_config::balloon::*;
 use crate::vmm_config::boot_source::{
     BootConfig, BootSource, BootSourceConfig, BootSourceConfigError,
 };
 use crate::vmm_config::drive::*;
+#[cfg(target_os = "linux")]
 use crate::vmm_config::entropy::*;
 use crate::vmm_config::instance_info::InstanceInfo;
 use crate::vmm_config::machine_config::{
     HugePageConfig, MachineConfig, MachineConfigError, MachineConfigUpdate,
 };
+#[cfg(target_os = "linux")]
 use crate::vmm_config::metrics::{init_metrics, MetricsConfig, MetricsConfigError};
+#[cfg(target_os = "linux")]
 use crate::vmm_config::mmds::{MmdsConfig, MmdsConfigError};
+#[cfg(target_os = "linux")]
 use crate::vmm_config::net::*;
+#[cfg(target_os = "linux")]
 use crate::vmm_config::vsock::*;
+#[cfg(target_os = "linux")]
 use crate::vstate::memory::{GuestMemoryExtension, GuestMemoryMmap, MemoryError};
 
 /// Errors encountered when configuring microVM resources.
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 pub enum ResourcesError {
+    #[cfg(target_os = "linux")]
     /// Balloon device error: {0}
     BalloonDevice(#[from] BalloonConfigError),
     /// Block device error: {0}
@@ -43,20 +58,27 @@ pub enum ResourcesError {
     File(#[from] std::io::Error),
     /// Invalid JSON: {0}
     InvalidJson(#[from] serde_json::Error),
+    #[cfg(target_os = "linux")]
     /// Logger error: {0}
     Logger(#[from] crate::logger::LoggerUpdateError),
+    #[cfg(target_os = "linux")]
     /// Metrics error: {0}
     Metrics(#[from] MetricsConfigError),
+    #[cfg(target_os = "linux")]
     /// MMDS error: {0}
     Mmds(#[from] mmds::data_store::MmdsDatastoreError),
+    #[cfg(target_os = "linux")]
     /// MMDS config error: {0}
     MmdsConfig(#[from] MmdsConfigError),
+    #[cfg(target_os = "linux")]
     /// Network device error: {0}
     NetDevice(#[from] NetworkInterfaceError),
     /// VM config error: {0}
     MachineConfig(#[from] MachineConfigError),
+    #[cfg(target_os = "linux")]
     /// Vsock device error: {0}
     VsockDevice(#[from] VsockConfigError),
+    #[cfg(target_os = "linux")]
     /// Entropy device error: {0}
     EntropyDevice(#[from] EntropyDeviceError),
 }
@@ -64,26 +86,34 @@ pub enum ResourcesError {
 /// Used for configuring a vmm from one single json passed to the Firecracker process.
 #[derive(Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct VmmConfig {
+    #[cfg(target_os = "linux")]
     #[serde(rename = "balloon")]
     balloon_device: Option<BalloonDeviceConfig>,
     #[serde(rename = "drives")]
     block_devices: Vec<BlockDeviceConfig>,
     #[serde(rename = "boot-source")]
     boot_source: BootSourceConfig,
+    #[cfg(target_os = "linux")]
     #[serde(rename = "cpu-config")]
     cpu_config: Option<PathBuf>,
+    #[cfg(target_os = "linux")]
     #[serde(rename = "logger")]
     logger: Option<crate::logger::LoggerConfig>,
     #[serde(rename = "machine-config")]
     machine_config: Option<MachineConfig>,
+    #[cfg(target_os = "linux")]
     #[serde(rename = "metrics")]
     metrics: Option<MetricsConfig>,
+    #[cfg(target_os = "linux")]
     #[serde(rename = "mmds-config")]
     mmds_config: Option<MmdsConfig>,
+    #[cfg(target_os = "linux")]
     #[serde(rename = "network-interfaces", default)]
     net_devices: Vec<NetworkInterfaceConfig>,
+    #[cfg(target_os = "linux")]
     #[serde(rename = "vsock")]
     vsock_device: Option<VsockDeviceConfig>,
+    #[cfg(target_os = "linux")]
     #[serde(rename = "entropy")]
     entropy_device: Option<EntropyDeviceConfig>,
 }
@@ -98,20 +128,27 @@ pub struct VmResources {
     pub boot_source: BootSource,
     /// The block devices.
     pub block: BlockBuilder,
+    #[cfg(target_os = "linux")]
     /// The vsock device.
     pub vsock: VsockBuilder,
+    #[cfg(target_os = "linux")]
     /// The balloon device.
     pub balloon: BalloonBuilder,
+    #[cfg(target_os = "linux")]
     /// The network devices builder.
     pub net_builder: NetBuilder,
+    #[cfg(target_os = "linux")]
     /// The entropy device builder.
     pub entropy: EntropyDeviceBuilder,
+    #[cfg(target_os = "linux")]
     /// The optional Mmds data store.
     // This is initialised on demand (if ever used), so that we don't allocate it unless it's
     // actually used.
     pub mmds: Option<Arc<Mutex<Mmds>>>,
+    #[cfg(target_os = "linux")]
     /// Data store limit for the mmds.
     pub mmds_size_limit: usize,
+    #[cfg(target_os = "linux")]
     /// Whether or not to load boot timer device.
     pub boot_timer: bool,
 }
@@ -121,28 +158,35 @@ impl VmResources {
     pub fn from_json(
         config_json: &str,
         instance_info: &InstanceInfo,
+        #[cfg(target_os = "linux")]
         mmds_size_limit: usize,
+        #[cfg(target_os = "linux")]
         metadata_json: Option<&str>,
     ) -> Result<Self, ResourcesError> {
         let vmm_config = serde_json::from_str::<VmmConfig>(config_json)?;
 
+        #[cfg(target_os = "linux")]
         if let Some(logger_config) = vmm_config.logger {
             crate::logger::LOGGER.update(logger_config)?;
         }
 
+        #[cfg(target_os = "linux")]
         if let Some(metrics) = vmm_config.metrics {
             init_metrics(metrics)?;
         }
 
         let mut resources: Self = Self {
-            mmds_size_limit,
+            #[cfg(target_os = "linux")] mmds_size_limit,
             ..Default::default()
         };
+
+        #[cfg(target_os = "linux")]
         if let Some(machine_config) = vmm_config.machine_config {
             let machine_config = MachineConfigUpdate::from(machine_config);
             resources.update_machine_config(&machine_config)?;
         }
 
+        #[cfg(target_os = "linux")]
         if let Some(cpu_config) = vmm_config.cpu_config {
             let cpu_config_json =
                 std::fs::read_to_string(cpu_config).map_err(ResourcesError::File)?;
@@ -156,18 +200,22 @@ impl VmResources {
             resources.set_block_device(drive_config)?;
         }
 
+        #[cfg(target_os = "linux")]
         for net_config in vmm_config.net_devices.into_iter() {
             resources.build_net_device(net_config)?;
         }
 
+        #[cfg(target_os = "linux")]
         if let Some(vsock_config) = vmm_config.vsock_device {
             resources.set_vsock_device(vsock_config)?;
         }
 
+        #[cfg(target_os = "linux")]
         if let Some(balloon_config) = vmm_config.balloon_device {
             resources.set_balloon_device(balloon_config)?;
         }
 
+        #[cfg(target_os = "linux")]
         // Init the data store from file, if present.
         if let Some(data) = metadata_json {
             resources.locked_mmds_or_default().put_data(
@@ -176,10 +224,12 @@ impl VmResources {
             info!("Successfully added metadata to mmds from file");
         }
 
+        #[cfg(target_os = "linux")]
         if let Some(mmds_config) = vmm_config.mmds_config {
             resources.set_mmds_config(mmds_config, &instance_info.id)?;
         }
 
+        #[cfg(target_os = "linux")]
         if let Some(entropy_device_config) = vmm_config.entropy_device {
             resources.build_entropy_device(entropy_device_config)?;
         }
@@ -187,6 +237,7 @@ impl VmResources {
         Ok(resources)
     }
 
+    #[cfg(target_os = "linux")]
     /// If not initialised, create the mmds data store with the default config.
     pub fn mmds_or_default(&mut self) -> &Arc<Mutex<Mmds>> {
         self.mmds
@@ -195,12 +246,14 @@ impl VmResources {
             ))))
     }
 
+    #[cfg(target_os = "linux")]
     /// If not initialised, create the mmds data store with the default config.
     pub fn locked_mmds_or_default(&mut self) -> MutexGuard<'_, Mmds> {
         let mmds = self.mmds_or_default();
         mmds.lock().expect("Poisoned lock")
     }
 
+    #[cfg(target_os = "linux")]
     /// Updates the resources from a restored device (used for configuring resources when
     /// restoring from a snapshot).
     pub fn update_from_restored_device(
@@ -235,6 +288,7 @@ impl VmResources {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     /// Add a custom CPU template to the VM resources
     /// to configure vCPUs.
     pub fn set_custom_cpu_template(&mut self, cpu_template: CustomCpuTemplate) {
@@ -246,12 +300,14 @@ impl VmResources {
         &mut self,
         update: &MachineConfigUpdate,
     ) -> Result<(), MachineConfigError> {
+        #[cfg(target_os = "linux")]
         if update.huge_pages.is_some() && update.huge_pages != Some(HugePageConfig::None) {
             log_dev_preview_warning("Huge pages support", None);
         }
 
         let updated = self.machine_config.update(update)?;
 
+        #[cfg(target_os = "linux")]
         // The VM cannot have a memory size smaller than the target size
         // of the balloon device, if present.
         if self.balloon.get().is_some()
@@ -265,10 +321,12 @@ impl VmResources {
             return Err(MachineConfigError::IncompatibleBalloonSize);
         }
 
+        #[cfg(target_os = "linux")]
         if self.balloon.get().is_some() && updated.huge_pages != HugePageConfig::None {
             return Err(MachineConfigError::BalloonAndHugePages);
         }
 
+        #[cfg(target_os = "linux")]
         if self.boot_source.config.initrd_path.is_some()
             && updated.huge_pages != HugePageConfig::None
         {
@@ -280,6 +338,7 @@ impl VmResources {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     // Repopulate the MmdsConfig based on information from the data store
     // and the associated net devices.
     fn mmds_config(&self) -> Option<MmdsConfig> {
@@ -318,6 +377,7 @@ impl VmResources {
         mmds_config
     }
 
+    #[cfg(target_os = "linux")]
     /// Sets a balloon device to be attached when the VM starts.
     pub fn set_balloon_device(
         &mut self,
@@ -341,6 +401,7 @@ impl VmResources {
         &mut self,
         boot_source_cfg: BootSourceConfig,
     ) -> Result<(), BootSourceConfigError> {
+        #[cfg(target_os = "linux")]
         if boot_source_cfg.initrd_path.is_some()
             && self.machine_config.huge_pages != HugePageConfig::None
         {
@@ -365,6 +426,7 @@ impl VmResources {
         self.block.insert(block_device_config)
     }
 
+    #[cfg(target_os = "linux")]
     /// Builds a network device to be attached when the VM starts.
     pub fn build_net_device(
         &mut self,
@@ -374,11 +436,13 @@ impl VmResources {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     /// Sets a vsock device to be attached when the VM starts.
     pub fn set_vsock_device(&mut self, config: VsockDeviceConfig) -> Result<(), VsockConfigError> {
         self.vsock.insert(config)
     }
 
+    #[cfg(target_os = "linux")]
     /// Builds an entropy device to be attached when the VM starts.
     pub fn build_entropy_device(
         &mut self,
@@ -387,6 +451,7 @@ impl VmResources {
         self.entropy.insert(body)
     }
 
+    #[cfg(target_os = "linux")]
     /// Setter for mmds config.
     pub fn set_mmds_config(
         &mut self,
@@ -399,6 +464,7 @@ impl VmResources {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     /// Updates MMDS version.
     pub fn set_mmds_version(
         &mut self,
@@ -414,6 +480,7 @@ impl VmResources {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     // Updates MMDS Network Stack for network interfaces to allow forwarding
     // requests to MMDS (or not).
     fn set_mmds_network_stack_config(
@@ -461,6 +528,7 @@ impl VmResources {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     /// Allocates guest memory in a configuration most appropriate for these [`VmResources`].
     ///
     /// If vhost-user-blk devices are in use, allocates memfd-backed shared memory, otherwise
@@ -501,21 +569,30 @@ impl VmResources {
 impl From<&VmResources> for VmmConfig {
     fn from(resources: &VmResources) -> Self {
         VmmConfig {
+            #[cfg(target_os = "linux")]
             balloon_device: resources.balloon.get_config().ok(),
             block_devices: resources.block.configs(),
             boot_source: resources.boot_source.config.clone(),
+            #[cfg(target_os = "linux")]
             cpu_config: None,
+            #[cfg(target_os = "linux")]
             logger: None,
             machine_config: Some(resources.machine_config.clone()),
+            #[cfg(target_os = "linux")]
             metrics: None,
+            #[cfg(target_os = "linux")]
             mmds_config: resources.mmds_config(),
+            #[cfg(target_os = "linux")]
             net_devices: resources.net_builder.configs(),
+            #[cfg(target_os = "linux")]
             vsock_device: resources.vsock.config(),
+            #[cfg(target_os = "linux")]
             entropy_device: resources.entropy.config(),
         }
     }
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 mod tests {
     use std::fs::File;

@@ -36,8 +36,10 @@ pub enum DriveError {
 #[derive(Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BlockDeviceConfig {
+    #[cfg(target_os = "linux")]
     /// Unique identifier of the drive.
     pub drive_id: String,
+    #[cfg(target_os = "linux")]
     /// Part-UUID. Represents the unique id of the boot partition of this device. It is
     /// optional and it will be used only if the `is_root_device` field is true.
     pub partuuid: Option<String>,
@@ -109,6 +111,7 @@ impl BlockBuilder {
         }
     }
 
+    #[cfg(target_os = "linux")]
     /// Specifies whether there is a root block device already present in the list.
     fn has_root_device(&self) -> bool {
         // If there is a root device, it would be at the top of the list.
@@ -119,6 +122,7 @@ impl BlockBuilder {
         }
     }
 
+    #[cfg(target_os = "linux")]
     /// Gets the index of the device with the specified `drive_id` if it exists in the list.
     fn get_index_of_drive_id(&self, drive_id: &str) -> Option<usize> {
         self.devices
@@ -126,6 +130,7 @@ impl BlockBuilder {
             .position(|b| b.lock().expect("Poisoned lock").id().eq(drive_id))
     }
 
+    #[cfg(target_os = "linux")]
     /// Inserts an existing block device.
     pub fn add_virtio_device(&mut self, block_device: Arc<Mutex<Block>>) {
         if block_device.lock().expect("Poisoned lock").root_device() {
@@ -139,10 +144,15 @@ impl BlockBuilder {
     /// If a block with the same id already exists, it will overwrite it.
     /// Inserting a secondary root block device will fail.
     pub fn insert(&mut self, config: BlockDeviceConfig) -> Result<(), DriveError> {
+        #[cfg(target_os = "linux")]
         let position = self.get_index_of_drive_id(&config.drive_id);
+        #[cfg(target_os = "macos")]
+        let position = None;
+        #[cfg(target_os = "linux")]
         let has_root_device = self.has_root_device();
         let configured_as_root = config.is_root_device;
 
+        #[cfg(target_os = "linux")]
         // Don't allow adding a second root block device.
         // If the new device cfg is root and not an update to the existing root, fail fast.
         if configured_as_root && has_root_device && position != Some(0) {

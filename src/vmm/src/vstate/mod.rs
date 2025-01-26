@@ -3,6 +3,7 @@
 #[cfg(target_os = "linux")]
 /// Module with Kvm implementation.
 pub mod kvm;
+pub mod avf;
 #[cfg(target_os = "linux")]
 /// Module with GuestMemory implementation.
 pub mod memory;
