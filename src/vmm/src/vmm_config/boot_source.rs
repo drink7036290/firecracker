@@ -1,6 +1,7 @@
 // Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(target_os = "linux")]
 use std::fs::File;
 use std::io;
 
@@ -21,6 +22,7 @@ pub const DEFAULT_KERNEL_CMDLINE: &str = "reboot=k panic=1 pci=off nomodule 8250
                                           i8042.noaux i8042.nomux i8042.nopnp i8042.dumbkbd";
 
 #[cfg(target_os = "macos")]
+/// Default guest kernel command line
 pub const DEFAULT_KERNEL_CMDLINE: &str = "console=hvc0 root=/dev/vda rw";
 
 /// Strongly typed data structure used to configure the boot source of the
@@ -105,15 +107,20 @@ impl BootConfig {
 }
 
 #[cfg(target_os = "macos")]
+/// Holds the kernel builder (created and validates based on BootSourceConfig).
 #[derive(Debug)]
 pub struct BootConfig {
+    /// The commandline to pass to the kernel.
     pub cmdline: String,
+    /// The path to the kernel file.
     pub kernel_file: String,
+    /// The path to the initrd file.
     pub initrd_file: Option<String>,
 }
 
 #[cfg(target_os = "macos")]
 impl BootConfig {
+    /// Create a new BootConfig from a BootSourceConfig.
     pub fn new(cfg: &BootSourceConfig) -> Result<Self, BootSourceConfigError> {
         let kernel_file = cfg.kernel_image_path.clone();
         let initrd_file = cfg.initrd_path.clone();

@@ -6,9 +6,12 @@
 #[cfg(target_os = "linux")]
 use std::path::Path;
 
+#[cfg(target_os = "linux")]
 const ADVANCED_BINARY_FILTER_FILE_NAME: &str = "seccomp_filter.bpf";
 
+#[cfg(target_os = "linux")]
 const JSON_DIR: &str = "../../resources/seccomp";
+#[cfg(target_os = "linux")]
 const SECCOMPILER_SRC_DIR: &str = "../seccompiler/src";
 
 #[cfg(target_os = "linux")]

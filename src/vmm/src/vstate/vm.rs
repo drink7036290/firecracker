@@ -18,10 +18,11 @@ use kvm_bindings::{kvm_userspace_memory_region, KVM_MEM_LOG_DIRTY_PAGES};
 // use kvm_ioctls::{Kvm, VmFd};
 #[cfg(target_os = "linux")]
 use kvm_ioctls::VmFd;
+#[cfg(target_os = "linux")]
 use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "macos")]
-use virt_fwk::VirtualMachineConfiguration;
+use virt_fwk::VirtualMachine;
 
 #[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
@@ -33,8 +34,10 @@ use crate::arch::aarch64::gic::GicState;
 use crate::utils::u64_to_usize;
 #[cfg(target_os = "linux")]
 use crate::vstate::kvm::Kvm;
+use crate::vstate::avf::Avf;
 #[cfg(target_os = "linux")]
 use crate::vstate::memory::{Address, GuestMemory, GuestMemoryMmap, GuestMemoryRegion};
+
 
 #[cfg(target_os = "linux")]
 /// Errors associated with the wrappers over KVM ioctls.
@@ -80,14 +83,15 @@ pub enum VmError {
 #[cfg(target_os = "macos")]
 #[rustfmt::skip]
 #[derive(Debug, PartialEq, Eq, thiserror::Error, displaydoc::Display)]
+/// Errors associated with the VM.
 pub enum VmError {
-    /// Failed to start the VM: {0}
+    /// Failed to start the VM
     StartVm,
-    /// Failed to stop the VM: {0}
+    /// Failed to stop the VM
     StopVm,
-    /// Failed to pause the VM: {0}
+    /// Failed to pause the VM
     PauseVm,
-    /// Failed to resume the VM: {0}
+    /// Failed to resume the VM
     ResumeVm,
 }
 
@@ -135,15 +139,17 @@ pub struct Vm {
 
 #[cfg(target_os = "macos")]
 #[derive(Debug)]
+/// A wrapper around creating and using a VM.
 pub struct Vm {
-    vm: VirtualMachine,
+    /// VM instance
+    pub instance: VirtualMachine,
 }
 
 #[cfg(target_os = "macos")]
 impl Vm {
     /// Create a new `Vm` struct.
     pub fn new(avf: &Avf) -> Result<Self, VmError> {
-        Ok(avf.create_vm().map_err(|e| VmError::CreateVm(e))?)
+        Ok(Self {instance: avf.create_vm()})
     }
 }
 

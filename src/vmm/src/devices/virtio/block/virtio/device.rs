@@ -5,40 +5,66 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
+#[cfg(target_os = "linux")]
 use std::cmp;
 use std::convert::From;
+#[cfg(target_os = "linux")]
 use std::fs::{File, OpenOptions};
+#[cfg(target_os = "linux")]
 use std::io::{Seek, SeekFrom, Write};
+#[cfg(target_os = "linux")]
 use std::os::linux::fs::MetadataExt;
+#[cfg(target_os = "linux")]
 use std::path::PathBuf;
+#[cfg(target_os = "linux")]
 use std::sync::Arc;
 
+#[cfg(target_os = "linux")]
 use block_io::FileEngine;
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "linux")]
 use vmm_sys_util::eventfd::EventFd;
 
+#[cfg(target_os = "linux")]
 use super::io::async_io;
+#[cfg(target_os = "linux")]
 use super::request::*;
+use super::VirtioBlockError;
+#[cfg(target_os = "linux")]
 use super::{
     io as block_io, VirtioBlockError, BLOCK_CONFIG_SPACE_SIZE, BLOCK_QUEUE_SIZES, SECTOR_SHIFT,
     SECTOR_SIZE,
 };
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::block::virtio::metrics::{BlockDeviceMetrics, BlockMetricsPerDevice};
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::block::CacheType;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::device::{DeviceState, IrqTrigger, IrqType, VirtioDevice};
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::gen::virtio_blk::{
     VIRTIO_BLK_F_FLUSH, VIRTIO_BLK_F_RO, VIRTIO_BLK_ID_BYTES, VIRTIO_F_VERSION_1,
 };
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::gen::virtio_ring::VIRTIO_RING_F_EVENT_IDX;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::queue::Queue;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::{ActivateError, TYPE_BLOCK};
+
+#[cfg(target_os = "linux")]
 use crate::logger::{error, warn, IncMetric};
+#[cfg(target_os = "linux")]
 use crate::rate_limiter::{BucketUpdate, RateLimiter};
+#[cfg(target_os = "linux")]
 use crate::utils::u64_to_usize;
 use crate::vmm_config::drive::BlockDeviceConfig;
+#[cfg(target_os = "linux")]
 use crate::vmm_config::RateLimiterConfig;
+#[cfg(target_os = "linux")]
 use crate::vstate::memory::GuestMemoryMmap;
 
+#[cfg(target_os = "linux")]
 /// The engine file type, either Sync or Async (through io_uring).
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum FileEngineType {
@@ -53,12 +79,16 @@ pub enum FileEngineType {
 #[derive(Debug)]
 pub struct DiskProperties {
     pub file_path: String,
+    #[cfg(target_os = "linux")]
     pub file_engine: FileEngine<PendingRequest>,
+    #[cfg(target_os = "linux")]
     pub nsectors: u64,
+    #[cfg(target_os = "linux")]
     pub image_id: [u8; VIRTIO_BLK_ID_BYTES as usize],
 }
 
 impl DiskProperties {
+    #[cfg(target_os = "linux")]
     // Helper function that opens the file with the proper access permissions
     fn open_file(disk_image_path: &str, is_disk_read_only: bool) -> Result<File, VirtioBlockError> {
         OpenOptions::new()
@@ -68,6 +98,7 @@ impl DiskProperties {
             .map_err(|x| VirtioBlockError::BackingFile(x, disk_image_path.to_string()))
     }
 
+    #[cfg(target_os = "linux")]
     // Helper function that gets the size of the file
     fn file_size(disk_image_path: &str, disk_image: &mut File) -> Result<u64, VirtioBlockError> {
         let disk_size = disk_image
@@ -90,22 +121,31 @@ impl DiskProperties {
     /// Create a new file for the block device using a FileEngine
     pub fn new(
         disk_image_path: String,
+        #[cfg(target_os = "linux")]
         is_disk_read_only: bool,
+        #[cfg(target_os = "linux")]
         file_engine_type: FileEngineType,
     ) -> Result<Self, VirtioBlockError> {
+        #[cfg(target_os = "linux")]
         let mut disk_image = Self::open_file(&disk_image_path, is_disk_read_only)?;
+        #[cfg(target_os = "linux")]
         let disk_size = Self::file_size(&disk_image_path, &mut disk_image)?;
+        #[cfg(target_os = "linux")]
         let image_id = Self::build_disk_image_id(&disk_image);
 
         Ok(Self {
             file_path: disk_image_path,
+            #[cfg(target_os = "linux")]
             file_engine: FileEngine::from_file(disk_image, file_engine_type)
                 .map_err(VirtioBlockError::FileEngine)?,
+            #[cfg(target_os = "linux")]
             nsectors: disk_size >> SECTOR_SHIFT,
+            #[cfg(target_os = "linux")]
             image_id,
         })
     }
 
+    #[cfg(target_os = "linux")]
     /// Update the path to the file backing the block device
     pub fn update(
         &mut self,
@@ -125,6 +165,7 @@ impl DiskProperties {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
     fn build_device_id(disk_file: &File) -> Result<String, VirtioBlockError> {
         let blk_metadata = disk_file
             .metadata()
@@ -139,6 +180,7 @@ impl DiskProperties {
         Ok(device_id)
     }
 
+    #[cfg(target_os = "linux")]
     fn build_disk_image_id(disk_file: &File) -> [u8; VIRTIO_BLK_ID_BYTES as usize] {
         let mut default_id = [0; VIRTIO_BLK_ID_BYTES as usize];
         match Self::build_device_id(disk_file) {
@@ -156,6 +198,7 @@ impl DiskProperties {
         default_id
     }
 
+    #[cfg(target_os = "linux")]
     /// Provides vec containing the virtio block configuration space
     /// buffer. The config space is populated with the disk size based
     /// on the backing file size.
@@ -173,8 +216,10 @@ impl DiskProperties {
 #[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct VirtioBlockConfig {
+    #[cfg(target_os = "linux")]
     /// Unique identifier of the drive.
     pub drive_id: String,
+    #[cfg(target_os = "linux")]
     /// Part-UUID. Represents the unique id of the boot partition of this device. It is
     /// optional and it will be used only if the `is_root_device` field is true.
     pub partuuid: Option<String>,
@@ -182,6 +227,7 @@ pub struct VirtioBlockConfig {
     /// Setting this flag to true will mount the block device in the
     /// guest under /dev/vda unless the partuuid is present.
     pub is_root_device: bool,
+    #[cfg(target_os = "linux")]
     /// If set to true, the drive will ignore flush requests coming from
     /// the guest driver.
     #[serde(default)]
@@ -192,8 +238,10 @@ pub struct VirtioBlockConfig {
     pub is_read_only: bool,
     /// Path of the backing file on the host
     pub path_on_host: String,
+    #[cfg(target_os = "linux")]
     /// Rate Limiter for I/O operations.
     pub rate_limiter: Option<RateLimiterConfig>,
+    #[cfg(target_os = "linux")]
     /// The type of IO engine used by the device.
     #[serde(default)]
     #[serde(rename = "io_engine")]
@@ -204,16 +252,27 @@ impl TryFrom<&BlockDeviceConfig> for VirtioBlockConfig {
     type Error = VirtioBlockError;
 
     fn try_from(value: &BlockDeviceConfig) -> Result<Self, Self::Error> {
-        if value.path_on_host.is_some() && value.socket.is_none() {
+        let condition = value.path_on_host.is_some();
+        #[cfg(target_os = "linux")]
+        {
+            condition = condition && value.socket.is_none();
+        }
+        if condition
+        {
             Ok(Self {
+                #[cfg(target_os = "linux")]
                 drive_id: value.drive_id.clone(),
+                #[cfg(target_os = "linux")]
                 partuuid: value.partuuid.clone(),
                 is_root_device: value.is_root_device,
+                #[cfg(target_os = "linux")]
                 cache_type: value.cache_type,
 
                 is_read_only: value.is_read_only.unwrap_or(false),
                 path_on_host: value.path_on_host.as_ref().unwrap().clone(),
+                #[cfg(target_os = "linux")]
                 rate_limiter: value.rate_limiter,
+                #[cfg(target_os = "linux")]
                 file_engine_type: value.file_engine_type.unwrap_or_default(),
             })
         } else {
@@ -225,21 +284,28 @@ impl TryFrom<&BlockDeviceConfig> for VirtioBlockConfig {
 impl From<VirtioBlockConfig> for BlockDeviceConfig {
     fn from(value: VirtioBlockConfig) -> Self {
         Self {
+            #[cfg(target_os = "linux")]
             drive_id: value.drive_id,
+            #[cfg(target_os = "linux")]
             partuuid: value.partuuid,
             is_root_device: value.is_root_device,
+            #[cfg(target_os = "linux")]
             cache_type: value.cache_type,
 
             is_read_only: Some(value.is_read_only),
             path_on_host: Some(value.path_on_host),
+            #[cfg(target_os = "linux")]
             rate_limiter: value.rate_limiter,
+            #[cfg(target_os = "linux")]
             file_engine_type: Some(value.file_engine_type),
 
+            #[cfg(target_os = "linux")]
             socket: None,
         }
     }
 }
 
+#[cfg(target_os = "linux")]
 /// Virtio device for exposing block level read/write operations on a host file.
 #[derive(Debug)]
 pub struct VirtioBlock {
@@ -269,6 +335,18 @@ pub struct VirtioBlock {
     pub metrics: Arc<BlockDeviceMetrics>,
 }
 
+#[cfg(target_os = "macos")]
+#[derive(Debug)]
+pub struct VirtioBlock {
+    // Implementation specific fields.
+    pub root_device: bool,
+    pub read_only: bool,
+
+    // Host file and properties.
+    pub disk: DiskProperties,
+}
+
+#[cfg(target_os = "linux")]
 macro_rules! unwrap_async_file_engine_or_return {
     ($file_engine: expr) => {
         match $file_engine {
@@ -281,6 +359,32 @@ macro_rules! unwrap_async_file_engine_or_return {
     };
 }
 
+#[cfg(target_os = "macos")]
+impl VirtioBlock {
+    pub fn new(config: VirtioBlockConfig) -> Result<VirtioBlock, VirtioBlockError> {
+        let disk_properties = DiskProperties::new(
+            config.path_on_host,
+        )?;
+
+        Ok(VirtioBlock {
+            root_device: config.is_root_device,
+            read_only: config.is_read_only,
+
+            disk: disk_properties,
+        })
+    }
+
+    /// Returns a copy of a device config
+    pub fn config(&self) -> VirtioBlockConfig {
+        VirtioBlockConfig {
+            path_on_host: self.disk.file_path.clone(),
+            is_root_device: self.root_device,
+            is_read_only: self.read_only,
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
 impl VirtioBlock {
     /// Create a new virtio block device that operates on the given file.
     ///
@@ -300,11 +404,9 @@ impl VirtioBlock {
             .unwrap_or_default();
 
         let mut avail_features = (1u64 << VIRTIO_F_VERSION_1) | (1u64 << VIRTIO_RING_F_EVENT_IDX);
-
         if config.cache_type == CacheType::Writeback {
             avail_features |= 1u64 << VIRTIO_BLK_F_FLUSH;
         }
-
         if config.is_read_only {
             avail_features |= 1u64 << VIRTIO_BLK_F_RO;
         };
@@ -346,8 +448,11 @@ impl VirtioBlock {
             is_root_device: self.root_device,
             partuuid: self.partuuid.clone(),
             is_read_only: self.read_only,
+            #[cfg(target_os = "linux")]
             cache_type: self.cache_type,
+            #[cfg(target_os = "linux")]
             rate_limiter: rl.into_option(),
+            #[cfg(target_os = "linux")]
             file_engine_type: self.file_engine_type(),
         }
     }
@@ -565,6 +670,7 @@ impl VirtioBlock {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl VirtioDevice for VirtioBlock {
     fn avail_features(&self) -> u64 {
         self.avail_features
@@ -655,6 +761,7 @@ impl VirtioDevice for VirtioBlock {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl Drop for VirtioBlock {
     fn drop(&mut self) {
         match self.cache_type {
@@ -670,6 +777,7 @@ impl Drop for VirtioBlock {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 mod tests {
     use std::fs::metadata;
@@ -703,9 +811,12 @@ mod tests {
 
             is_read_only: Some(true),
             path_on_host: Some("path".to_string()),
+            #[cfg(target_os = "linux")]
             rate_limiter: None,
+            #[cfg(target_os = "linux")]
             file_engine_type: Default::default(),
 
+            #[cfg(target_os = "linux")]
             socket: None,
         };
         VirtioBlockConfig::try_from(&block_config).unwrap();
@@ -718,9 +829,12 @@ mod tests {
 
             is_read_only: None,
             path_on_host: None,
+            #[cfg(target_os = "linux")]
             rate_limiter: None,
+            #[cfg(target_os = "linux")]
             file_engine_type: Default::default(),
 
+            #[cfg(target_os = "linux")]
             socket: Some("sock".to_string()),
         };
         VirtioBlockConfig::try_from(&block_config).unwrap_err();
@@ -733,9 +847,12 @@ mod tests {
 
             is_read_only: Some(true),
             path_on_host: Some("path".to_string()),
+            #[cfg(target_os = "linux")]
             rate_limiter: None,
+            #[cfg(target_os = "linux")]
             file_engine_type: Default::default(),
 
+            #[cfg(target_os = "linux")]
             socket: Some("sock".to_string()),
         };
         VirtioBlockConfig::try_from(&block_config).unwrap_err();
@@ -836,7 +953,7 @@ mod tests {
             block.read_config(0, &mut actual_config_space);
             assert_eq!(actual_config_space, expected_config_space);
 
-            // If priviledged user writes to `/dev/mem`, in block config space - byte by byte.
+            // If privileged user writes to `/dev/mem`, in block config space - byte by byte.
             let expected_config_space = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x00, 0x11];
             for i in 0..expected_config_space.len() {
                 block.write_config(i as u64, &expected_config_space[i..=i]);

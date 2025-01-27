@@ -1,6 +1,5 @@
 [workspace]
-members = ["src/*"]
-default-members = ["src/vmm", "src/firecracker/src"]
+members = ["src/vmm", "src/firecracker", "src/utils"]
 resolver = "2"
 
 [workspace.lints.rust]

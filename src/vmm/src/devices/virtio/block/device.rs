@@ -1,19 +1,29 @@
 // Copyright 2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(target_os = "linux")]
 use event_manager::{EventOps, Events, MutEventSubscriber};
+#[cfg(target_os = "linux")]
 use vmm_sys_util::eventfd::EventFd;
 
+#[cfg(target_os = "linux")]
 use super::persist::{BlockConstructorArgs, BlockState};
+#[cfg(target_os = "linux")]
 use super::vhost_user::device::{VhostUserBlock, VhostUserBlockConfig};
 use super::virtio::device::{VirtioBlock, VirtioBlockConfig};
 use super::BlockError;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::device::{IrqTrigger, VirtioDevice};
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::queue::Queue;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::{ActivateError, TYPE_BLOCK};
+#[cfg(target_os = "linux")]
 use crate::rate_limiter::BucketUpdate;
+#[cfg(target_os = "linux")]
 use crate::snapshot::Persist;
 use crate::vmm_config::drive::BlockDeviceConfig;
+#[cfg(target_os = "linux")]
 use crate::vstate::memory::GuestMemoryMmap;
 
 // Clippy thinks that values of the enum are too different in size.
@@ -21,31 +31,37 @@ use crate::vstate::memory::GuestMemoryMmap;
 #[derive(Debug)]
 pub enum Block {
     Virtio(VirtioBlock),
+    #[cfg(target_os = "linux")]
     VhostUser(VhostUserBlock),
 }
 
 impl Block {
     pub fn new(config: BlockDeviceConfig) -> Result<Block, BlockError> {
         if let Ok(config) = VirtioBlockConfig::try_from(&config) {
-            Ok(Self::Virtio(
+            return Ok(Self::Virtio(
                 VirtioBlock::new(config).map_err(BlockError::VirtioBackend)?,
-            ))
-        } else if let Ok(config) = VhostUserBlockConfig::try_from(&config) {
-            Ok(Self::VhostUser(
-                VhostUserBlock::new(config).map_err(BlockError::VhostUserBackend)?,
-            ))
-        } else {
-            return Err(BlockError::InvalidBlockConfig);
+            ));
         }
+
+        #[cfg(target_os = "linux")]
+        if let Ok(config) = VhostUserBlockConfig::try_from(&config) {
+            return Ok(Self::VhostUser(
+                VhostUserBlock::new(config).map_err(BlockError::VhostUserBackend)?,
+            ));
+        }
+
+        Err(BlockError::InvalidBlockConfig)
     }
 
     pub fn config(&self) -> BlockDeviceConfig {
         match self {
             Self::Virtio(b) => b.config().into(),
+            #[cfg(target_os = "linux")]
             Self::VhostUser(b) => b.config().into(),
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn update_disk_image(&mut self, disk_image_path: String) -> Result<(), BlockError> {
         match self {
             Self::Virtio(b) => b
@@ -55,6 +71,7 @@ impl Block {
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn update_rate_limiter(
         &mut self,
         bytes: BucketUpdate,
@@ -69,6 +86,7 @@ impl Block {
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn update_config(&mut self) -> Result<(), BlockError> {
         match self {
             Self::Virtio(_) => Err(BlockError::InvalidBlockBackend),
@@ -76,6 +94,7 @@ impl Block {
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn prepare_save(&mut self) {
         match self {
             Self::Virtio(b) => b.prepare_save(),
@@ -83,6 +102,7 @@ impl Block {
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn process_virtio_queues(&mut self) {
         match self {
             Self::Virtio(b) => b.process_virtio_queues(),
@@ -90,6 +110,7 @@ impl Block {
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn id(&self) -> &str {
         match self {
             Self::Virtio(b) => &b.id,
@@ -100,6 +121,7 @@ impl Block {
     pub fn root_device(&self) -> bool {
         match self {
             Self::Virtio(b) => b.root_device,
+            #[cfg(target_os = "linux")]
             Self::VhostUser(b) => b.root_device,
         }
     }
@@ -107,10 +129,12 @@ impl Block {
     pub fn read_only(&self) -> bool {
         match self {
             Self::Virtio(b) => b.read_only,
+            #[cfg(target_os = "linux")]
             Self::VhostUser(b) => b.read_only,
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn partuuid(&self) -> &Option<String> {
         match self {
             Self::Virtio(b) => &b.partuuid,
@@ -118,6 +142,7 @@ impl Block {
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn is_vhost_user(&self) -> bool {
         match self {
             Self::Virtio(_) => false,
@@ -126,6 +151,7 @@ impl Block {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl VirtioDevice for Block {
     fn avail_features(&self) -> u64 {
         match self {
@@ -209,6 +235,7 @@ impl VirtioDevice for Block {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl MutEventSubscriber for Block {
     fn process(&mut self, event: Events, ops: &mut EventOps) {
         match self {
@@ -225,6 +252,7 @@ impl MutEventSubscriber for Block {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl Persist<'_> for Block {
     type State = BlockState;
     type ConstructorArgs = BlockConstructorArgs;

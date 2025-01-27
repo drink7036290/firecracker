@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::convert::From;
+#[cfg(target_os = "linux")]
 use std::path::PathBuf;
+#[cfg(target_os = "linux")]
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
@@ -29,7 +31,10 @@ use crate::vmm_config::boot_source::{
 use crate::vmm_config::drive::*;
 #[cfg(target_os = "linux")]
 use crate::vmm_config::entropy::*;
+#[cfg(target_os = "linux")]
 use crate::vmm_config::instance_info::InstanceInfo;
+use crate::vmm_config::machine_config::{MachineConfig, MachineConfigError};
+#[cfg(target_os = "linux")]
 use crate::vmm_config::machine_config::{
     HugePageConfig, MachineConfig, MachineConfigError, MachineConfigUpdate,
 };
@@ -157,6 +162,7 @@ impl VmResources {
     /// Configures Vmm resources as described by the `config_json` param.
     pub fn from_json(
         config_json: &str,
+        #[cfg(target_os = "linux")]
         instance_info: &InstanceInfo,
         #[cfg(target_os = "linux")]
         mmds_size_limit: usize,
@@ -295,6 +301,7 @@ impl VmResources {
         self.machine_config.set_custom_cpu_template(cpu_template);
     }
 
+    #[cfg(target_os = "linux")]
     /// Updates the configuration of the microVM.
     pub fn update_machine_config(
         &mut self,

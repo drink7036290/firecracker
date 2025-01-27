@@ -76,6 +76,12 @@ vmm/src/vmm_config/boot_source.rs
 *    BootSourceConfig
 *    BootConfig
 
+
+BlockDeviceConfig
+VirtioBlockConfig
+VirtioBlock
+
+
 vmm/src/vmm_config/machine_config.rs
 *    MachineConfigError
 *    MachineConfig
@@ -113,6 +119,9 @@ Vmm
 	pause_vm()
 	stop()
 Vm # per vm content, vmm/src/vstate/vm.rs
+
+
+
 
 #=========
 

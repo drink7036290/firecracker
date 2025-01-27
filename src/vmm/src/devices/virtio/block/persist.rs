@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::vhost_user::persist::VhostUserBlockState;
 use super::virtio::persist::VirtioBlockState;
+#[cfg(target_os = "linux")]
 use crate::vstate::memory::GuestMemoryMmap;
 
 /// Block device state.
@@ -14,6 +15,7 @@ pub enum BlockState {
     VhostUser(VhostUserBlockState),
 }
 
+#[cfg(target_os = "linux")]
 /// Auxiliary structure for creating a device when resuming from a snapshot.
 #[derive(Debug)]
 pub struct BlockConstructorArgs {

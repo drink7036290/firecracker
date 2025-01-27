@@ -4,18 +4,28 @@
 //! Implements a virtio block device.
 
 pub mod device;
+#[cfg(target_os = "linux")]
 mod event_handler;
+#[cfg(target_os = "linux")]
 mod io;
+#[cfg(target_os = "linux")]
 pub mod metrics;
+#[cfg(target_os = "linux")]
 pub mod persist;
+#[cfg(target_os = "linux")]
 pub mod request;
+#[cfg(target_os = "linux")]
 pub mod test_utils;
 
+#[cfg(target_os = "linux")]
 use vm_memory::GuestMemoryError;
 
 pub use self::device::VirtioBlock;
+#[cfg(target_os = "linux")]
 pub use self::request::*;
+#[cfg(target_os = "linux")]
 pub use crate::devices::virtio::block::CacheType;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::queue::FIRECRACKER_MAX_QUEUE_SIZE;
 
 /// Size of config space for block device.
@@ -24,14 +34,17 @@ pub const BLOCK_CONFIG_SPACE_SIZE: usize = 8;
 pub const SECTOR_SHIFT: u8 = 9;
 /// Size of block sector.
 pub const SECTOR_SIZE: u32 = (0x01_u32) << SECTOR_SHIFT;
+#[cfg(target_os = "linux")]
 /// The number of queues of block device.
 pub const BLOCK_NUM_QUEUES: usize = 1;
+#[cfg(target_os = "linux")]
 pub const BLOCK_QUEUE_SIZES: [u16; BLOCK_NUM_QUEUES] = [FIRECRACKER_MAX_QUEUE_SIZE];
 // The virtio queue can hold up to 256 descriptors, but 1 request spreads across 2-3 descriptors.
 // So we can use 128 IO_URING entries without ever triggering a FullSq Error.
 /// Maximum number of io uring entries we allow in the queue.
 pub const IO_URING_NUM_ENTRIES: u16 = 128;
 
+#[cfg(target_os = "linux")]
 /// Errors the block device can trigger.
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 pub enum VirtioBlockError {
@@ -65,4 +78,13 @@ pub enum VirtioBlockError {
     RateLimiter(std::io::Error),
     /// Persistence error: {0}
     Persist(crate::devices::virtio::persist::PersistError),
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Debug, thiserror::Error, displaydoc::Display)]
+pub enum VirtioBlockError {
+    /// Cannot create config
+    Config,
+    /// Error manipulating the backing file: {0} {1}
+    BackingFile(std::io::Error, String),
 }

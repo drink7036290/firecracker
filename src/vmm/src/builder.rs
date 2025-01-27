@@ -178,31 +178,47 @@ fn create_vmm_and_vcpus(
         .as_ref()
         .ok_or(MissingKernelConfig)?;
 
+    let mut block_devices: Vec<VirtioBlockDeviceConfiguration> = Vec::new();
+
+    for block in vm_resources.block.devices.iter() {
+        let locked = block.lock().unwrap();
+        match &*locked {
+            Block::Virtio(virtio_block) => {
+                let path_on_host = virtio_block.config().path_on_host.clone();
+                let attachment = DiskImageStorageDeviceAttachment::new(&path_on_host, false);
+
+                block_devices.push(VirtioBlockDeviceConfiguration::new(attachment));
+            }
+            _ => {
+                return Err(StartMicrovmError::UnsupportedBlockDevice);
+            }
+        }
+    }
+
     let avf = Avf::new(
         &boot_config.kernel_file,
         &boot_config.cmdline,
         vm_resources.machine_config.vcpu_count,
-        vm_resources.machine_config.mem_size_mib)
+        vm_resources.machine_config.mem_size_mib,
+        block_devices,
+    )
         .map_err(VmmError::Avf)
         .map_err(StartMicrovmError::Internal)?;
 
-    let mut vm = Vm::new(&avf)
+    let vm = Vm::new(&avf)
         .map_err(VmmError::Vm)
         .map_err(StartMicrovmError::Internal)?;
 
-    let vmm = Vmm {
+    Ok(Vmm {
         events_observer: Some(std::io::stdin()),
         instance_info: instance_info.clone(),
         shutdown_exit_code: None,
         avf,
         vm,
-    };
-
-    Ok(vmm)
+    })
 }
 
 #[cfg(target_os = "linux")]
-#[cfg_attr(target_arch = "aarch64", allow(unused))]
 fn create_vmm_and_vcpus(
     instance_info: &InstanceInfo,
     event_manager: &mut EventManager,
@@ -312,11 +328,6 @@ pub fn build_microvm_for_boot(
     let mut vmm = create_vmm_and_vcpus(
         instance_info,
         vm_resources,
-    )?;
-
-    attach_block_devices(
-        &mut vmm,
-        vm_resources.block.devices.iter(),
     )?;
 
     if let Some(stdin) = vmm.events_observer.as_mut() {
@@ -1106,34 +1117,6 @@ fn attach_block_devices<'a, I: Iterator<Item = &'a Arc<Mutex<Block>>> + Debug>(
         )?;
     }
     Ok(())
-}
-
-#[cfg(target_os = "macos")]
-fn attach_block_devices<'a, I: Iterator<Item = &'a Arc<Mutex<Block>>> + Debug>(
-    vmm: &mut Vmm,
-    blocks: I,
-) -> Result<(), StartMicrovmError> {
-    let mut block_devices: Vec<VirtioBlockDeviceConfiguration> = Vec::new();
-
-    for block in blocks {
-        let locked = block.lock().unwrap();
-        match &*locked {
-            Block::Virtio(virtio_block) => {
-                let path_on_host = virtio_block.config().path_on_host.clone();
-                let attachment = DiskImageStorageDeviceAttachment::new(&path_on_host, false);
-
-                block_devices.push(VirtioBlockDeviceConfiguration::new(attachment));
-            }
-
-            Block::VhostUser(_) => {
-                return Err(StartMicrovmError::Unsupported(
-                    "vhost-user block not supported on AVF".to_string(),
-                ));
-            }
-        }
-    }
-
-    vmm.avf.attach_block_devices(block_devices).map_err(AttachBlockDevice)
 }
 
 #[cfg(target_os = "linux")]

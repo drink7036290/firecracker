@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "linux")]
 use self::vhost_user::VhostUserBlockError;
 use self::virtio::VirtioBlockError;
-
 pub mod device;
+#[cfg(target_os = "linux")]
 pub mod persist;
+#[cfg(target_os = "linux")]
 pub mod vhost_user;
 pub mod virtio;
 
@@ -33,6 +35,7 @@ pub enum BlockError {
     BackendRestore,
     /// Virtio backend error: {0}
     VirtioBackend(VirtioBlockError),
+    #[cfg(target_os = "linux")]
     /// Vhost user backend error: {0}
     VhostUserBackend(VhostUserBlockError),
 }

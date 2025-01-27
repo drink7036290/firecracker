@@ -358,16 +358,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8eb5e908ef3a6efbe1ed62520fb7287959888c88485abe072543190ecc66783"
 dependencies = [
  "clap_builder",
- "clap_derive",
-]
-
-[[package]]
-name = "clap-num"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e063d263364859dc54fb064cedb7c122740cd4733644b14b176c097f51e8ab7"
-dependencies = [
- "num-traits",
 ]
 
 [[package]]
@@ -376,22 +366,8 @@ version = "4.5.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96b01801b5fc6a0a232407abc821660c9c6d25a1cafc0d4f85f29fb8d9afc121"
 dependencies = [
- "anstream",
  "anstyle",
  "clap_lex",
- "strsim",
-]
-
-[[package]]
-name = "clap_derive"
-version = "4.5.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54b755194d6389280185988721fffba69495eed5ee9feeee9a599b53db80318c"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -399,19 +375,6 @@ name = "clap_lex"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
-
-[[package]]
-name = "clippy-tracing"
-version = "0.1.0"
-dependencies = [
- "clap",
- "itertools 0.14.0",
- "proc-macro2",
- "quote",
- "syn",
- "uuid",
- "walkdir",
-]
 
 [[package]]
 name = "cmake"
@@ -427,21 +390,6 @@ name = "colorchoice"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
-
-[[package]]
-name = "cpu-template-helper"
-version = "1.11.0-dev"
-dependencies = [
- "clap",
- "displaydoc",
- "libc",
- "log-instrument",
- "serde",
- "serde_json",
- "thiserror 2.0.11",
- "vmm",
- "vmm-sys-util",
-]
 
 [[package]]
 name = "cpufeatures"
@@ -642,7 +590,6 @@ dependencies = [
  "log-instrument",
  "micro_http",
  "regex",
- "seccompiler",
  "serde",
  "serde_derive",
  "serde_json",
@@ -738,12 +685,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf151400ff0baff5465007dd2f3e717f3fe502074ca563069ce3a6629d07b289"
 
 [[package]]
-name = "heck"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
-
-[[package]]
 name = "hermit-abi"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -823,18 +764,6 @@ name = "itoa"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d75a2a4b1b190afb6f5425f10f6a8f959d2ea0b9c2b1d79553551850539e4674"
-
-[[package]]
-name = "jailer"
-version = "1.11.0-dev"
-dependencies = [
- "libc",
- "log-instrument",
- "regex",
- "thiserror 2.0.11",
- "utils",
- "vmm-sys-util",
-]
 
 [[package]]
 name = "jobserver"
@@ -1161,18 +1090,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rebase-snap"
-version = "1.11.0-dev"
-dependencies = [
- "displaydoc",
- "libc",
- "log-instrument",
- "thiserror 2.0.11",
- "utils",
- "vmm-sys-util",
-]
-
-[[package]]
 name = "regex"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1233,20 +1150,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "seccompiler"
-version = "1.11.0-dev"
-dependencies = [
- "bincode",
- "clap",
- "displaydoc",
- "libc",
- "serde",
- "serde_json",
- "thiserror 2.0.11",
- "zerocopy 0.8.14",
 ]
 
 [[package]]
@@ -1313,28 +1216,6 @@ checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
 dependencies = [
  "autocfg",
 ]
-
-[[package]]
-name = "snapshot-editor"
-version = "1.11.0-dev"
-dependencies = [
- "clap",
- "clap-num",
- "displaydoc",
- "libc",
- "log-instrument",
- "semver",
- "thiserror 2.0.11",
- "utils",
- "vmm",
- "vmm-sys-util",
-]
-
-[[package]]
-name = "strsim"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subtle"
@@ -1571,7 +1452,6 @@ dependencies = [
 [[package]]
 name = "virt-fwk"
 version = "0.1.0"
-source = "git+https://github.com/drink7036290/virt-fwk?branch=main#d3c6ac1de85c6f336fe2ce783fb950fc95cfbfe0"
 dependencies = [
  "block2",
  "crossbeam-channel",
@@ -1624,6 +1504,7 @@ dependencies = [
  "bitflags 2.7.0",
  "crc64",
  "criterion",
+ "crossbeam-channel",
  "derive_more",
  "device_tree",
  "displaydoc",

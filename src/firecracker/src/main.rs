@@ -380,6 +380,7 @@ fn main_exec() -> Result<(), MainError> {
     #[cfg(target_os = "linux")]
     register_signal_handlers().map_err(MainError::RegisterSignalHandlers)?;
 
+    #[cfg(target_os = "linux")]
     #[cfg(target_arch = "aarch64")]
     enable_ssbd_mitigation();
 
@@ -402,6 +403,7 @@ fn main_exec() -> Result<(), MainError> {
     // deprecating one.
     // warn_deprecated_parameters(&arguments);
 
+    #[cfg(target_os = "linux")]
     let instance_info = InstanceInfo {
         id: instance_id.clone(),
         state: VmState::NotStarted,
@@ -519,7 +521,6 @@ fn main_exec() -> Result<(), MainError> {
     #[cfg(target_os = "macos")]
     run_without_api(
         vmm_config_json,
-        instance_info,
     )
     .map_err(MainError::RunWithoutApiError)
 }
@@ -633,28 +634,46 @@ pub enum BuildFromJsonError {
     StartMicroVM(StartMicrovmError),
 }
 
+#[cfg(target_os = "macos")]
 // Configure and start a microVM as described by the command-line JSON.
 fn build_microvm_from_json(
-    #[cfg(target_os = "linux")] seccomp_filters: &BpfThreadMap,
-    #[cfg(target_os = "linux")] event_manager: &mut EventManager,
     config_json: String,
-    instance_info: InstanceInfo,
-    #[cfg(target_os = "linux")] boot_timer_enabled: bool,
-    #[cfg(target_os = "linux")] mmds_size_limit: usize,
-    #[cfg(target_os = "linux")] metadata_json: Option<&str>,
 ) -> Result<(VmResources, Arc<Mutex<vmm::Vmm>>), BuildFromJsonError> {
     let mut vm_resources =
-        VmResources::from_json(&config_json, &instance_info,
-            #[cfg(target_os = "linux")] mmds_size_limit,
-            #[cfg(target_os = "linux")] metadata_json)
+        VmResources::from_json(&config_json,)
             .map_err(BuildFromJsonError::ParseFromJson)?;
-    #[cfg(target_os = "linux")]
+    let vmm = vmm::builder::build_and_boot_microvm(
+        &vm_resources,
+    ).map_err(BuildFromJsonError::StartMicroVM)?;
+
+    info!("Successfully started microvm that was configured from one single json");
+
+    Ok((vm_resources, vmm))
+}
+
+#[cfg(target_os = "linux")]
+// Configure and start a microVM as described by the command-line JSON.
+fn build_microvm_from_json(
+    seccomp_filters: &BpfThreadMap,
+    event_manager: &mut EventManager,
+    config_json: String,
+    instance_info: InstanceInfo,
+    boot_timer_enabled: bool,
+    mmds_size_limit: usize,
+    metadata_json: Option<&str>,
+) -> Result<(VmResources, Arc<Mutex<vmm::Vmm>>), BuildFromJsonError> {
+    let mut vm_resources =
+        VmResources::from_json(&config_json,
+            &instance_info,
+            mmds_size_limit,
+            metadata_json)
+            .map_err(BuildFromJsonError::ParseFromJson)?;
     vm_resources.boot_timer = boot_timer_enabled;
     let vmm = vmm::builder::build_and_boot_microvm(
         &instance_info,
         &vm_resources,
-        #[cfg(target_os = "linux")] event_manager,
-        #[cfg(target_os = "linux")] seccomp_filters,
+        event_manager,
+        seccomp_filters,
     )
     .map_err(BuildFromJsonError::StartMicroVM)?;
 
@@ -727,16 +746,14 @@ use crossbeam_channel::{bounded, select, Receiver};
 #[cfg(target_os = "macos")]
 fn run_without_api(
     config_json: Option<String>,
-    instance_info: InstanceInfo,
 ) -> Result<(), RunWithoutApiError> {
     // Build the microVm. We can ignore VmResources since it's not used without api.
     let (_, vmm) = build_microvm_from_json(
         config_json.unwrap(),
-        instance_info,
     )
     .map_err(RunWithoutApiError::BuildMicroVMFromJson)?;
 
-    let std_in = stdin();
+    let std_in = &vmm.events_observer.unwrap();
     let termios = get_terminal_attr(&std_in)?;
     set_raw_mode(&std_in)?;
 
@@ -777,12 +794,12 @@ fn run_without_api(
 use std::{io, mem, os::fd::AsRawFd};
 
 #[cfg(target_os = "macos")]
-{
 // Support functions for converting libc return values to io errors {
 trait IsMinusOne {
     fn is_minus_one(&self) -> bool;
 }
 
+#[cfg(target_os = "macos")]
 macro_rules! impl_is_minus_one {
     ($($t:ident)*) => ($(impl IsMinusOne for $t {
         fn is_minus_one(&self) -> bool {
@@ -791,8 +808,10 @@ macro_rules! impl_is_minus_one {
     })*)
 }
 
+#[cfg(target_os = "macos")]
 impl_is_minus_one! { i8 i16 i32 i64 isize }
 
+#[cfg(target_os = "macos")]
 fn cvt<T: IsMinusOne>(t: T) -> io::Result<T> {
     if t.is_minus_one() {
         Err(io::Error::last_os_error())
@@ -801,6 +820,7 @@ fn cvt<T: IsMinusOne>(t: T) -> io::Result<T> {
     }
 }
 
+#[cfg(target_os = "macos")]
 pub fn get_terminal_attr(fd: &impl AsRawFd) -> io::Result<libc::termios> {
     unsafe {
         let mut termios = mem::zeroed();
@@ -809,10 +829,12 @@ pub fn get_terminal_attr(fd: &impl AsRawFd) -> io::Result<libc::termios> {
     }
 }
 
+#[cfg(target_os = "macos")]
 pub fn set_terminal_attr(fd: &impl AsRawFd, termios: &libc::termios) -> io::Result<()> {
     cvt(unsafe { libc::tcsetattr(fd.as_raw_fd(), libc::TCSANOW, termios) }).and(Ok(()))
 }
 
+#[cfg(target_os = "macos")]
 pub fn set_raw_mode(fd: &impl AsRawFd) -> io::Result<()> {
     let mut attr = get_terminal_attr(fd).unwrap();
 
@@ -827,5 +849,4 @@ pub fn set_raw_mode(fd: &impl AsRawFd) -> io::Result<()> {
     set_terminal_attr(fd, &attr).unwrap();
 
     Ok(())
-}
 }

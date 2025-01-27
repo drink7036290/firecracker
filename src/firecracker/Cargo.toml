@@ -51,10 +51,11 @@ userfaultfd = "0.8.1"
 serde = { version = "1.0.217" }
 serde_json = "1.0.135"
 
-[target.'cfg(target_os = "linux")'.build-dependencies]
-seccompiler = { path = "../seccompiler" }
+#[target.'cfg(target_os = "linux")'.build-dependencies]
+#seccompiler = { path = "../seccompiler" }
 
 [features]
+default = []
 tracing = ["log-instrument", "utils/tracing", "vmm/tracing"]
 gdb = ["vmm/gdb"]
 

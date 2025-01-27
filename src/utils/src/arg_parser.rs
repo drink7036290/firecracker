@@ -459,6 +459,7 @@ impl<'a> Arguments<'a> {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -492,6 +493,7 @@ mod tests {
             );
 
         #[cfg(target_os = "linux")]
+        {
         parser = parser
             .arg(
                 Argument::new("seccomp-filter")
@@ -504,8 +506,9 @@ mod tests {
                     .help("'-no-seccomp' info.")
                     .forbids(vec!["seccomp-filter"]),
             );
+        }
 
-        parser
+        parser = parser
             .arg(
                 Argument::new("config-file")
                     .takes_value(true)
@@ -515,7 +518,9 @@ mod tests {
                 Argument::new("describe-snapshot")
                     .takes_value(true)
                     .help("'describe-snapshot' info."),
-            )
+            );
+
+        parser
     }
 
     #[test]
@@ -609,12 +614,14 @@ mod tests {
         arg_parser = ArgParser::new()
             .arg(Argument::new("id").takes_value(true).help("'id' info."));
         #[cfg(target_os = "linux")]
+        {
         arg_parser = arg_parser
             .arg(
                 Argument::new("seccomp-filter")
                     .takes_value(true)
                     .help("'seccomp-filter' info."),
             );
+        }
         arg_parser = arg_parser
             .arg(
                 Argument::new("config-file")
@@ -884,6 +891,7 @@ mod tests {
 
         arguments = arg_parser.arguments().clone();
 
+        #[cfg(target_os = "linux")]
         let args = vec![
             "binary-name",
             "--exec-file",
@@ -892,9 +900,7 @@ mod tests {
             "bar",
             "--id",
             "foobar",
-            #[cfg(target_os = "linux")]
             "--no-seccomp",
-            #[cfg(target_os = "linux")]
             "--seccomp-filter",
             "0",
         ]
@@ -954,7 +960,6 @@ mod tests {
             "bar",
             "--id",
             "foobar",
-            #[cfg(target_os = "linux")]
             "--seccomp-filter",
             "0",
             "--",

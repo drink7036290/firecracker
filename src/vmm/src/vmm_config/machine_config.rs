@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::fmt::Debug;
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
+#[cfg(target_os = "linux")]
+use serde::{Deserializer, Serializer};
 #[cfg(target_os = "linux")]
 use crate::cpu_config::templates::{CpuTemplateType, CustomCpuTemplate, StaticCpuTemplate};
 
@@ -142,6 +144,7 @@ pub struct MachineConfig {
 #[cfg(target_os = "macos")]
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+/// Machine configuration.
 pub struct MachineConfig {
     /// Number of vcpu to start.
     pub vcpu_count: u8,
@@ -179,6 +182,7 @@ where
     template.serialize(serializer)
 }
 
+#[cfg(target_os = "linux")]
 impl Default for MachineConfig {
     fn default() -> Self {
         Self {

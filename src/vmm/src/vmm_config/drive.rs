@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::VecDeque;
+#[cfg(target_os = "linux")]
 use std::io;
 use std::sync::{Arc, Mutex};
 
@@ -9,7 +10,6 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "linux")]
 use super::RateLimiterConfig;
-#[cfg(target_os = "linux")]
 use crate::devices::virtio::block::device::Block;
 #[cfg(target_os = "linux")]
 pub use crate::devices::virtio::block::virtio::device::FileEngineType;

@@ -10,24 +10,35 @@ use log::error;
 use utils::time::{get_time_us, ClockType};
 use vhost::vhost_user::message::*;
 use vhost::vhost_user::Frontend;
+#[cfg(target_os = "linux")]
 use vmm_sys_util::eventfd::EventFd;
 
 use super::{VhostUserBlockError, NUM_QUEUES, QUEUE_SIZE};
 use crate::devices::virtio::block::CacheType;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::device::{DeviceState, IrqTrigger, IrqType, VirtioDevice};
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::gen::virtio_blk::{
     VIRTIO_BLK_F_FLUSH, VIRTIO_BLK_F_RO, VIRTIO_F_VERSION_1,
 };
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::gen::virtio_ring::VIRTIO_RING_F_EVENT_IDX;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::queue::Queue;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::vhost_user::{VhostUserHandleBackend, VhostUserHandleImpl};
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::vhost_user_metrics::{
     VhostUserDeviceMetrics, VhostUserMetricsPerDevice,
 };
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::{ActivateError, TYPE_BLOCK};
+#[cfg(target_os = "linux")]
 use crate::logger::{log_dev_preview_warning, IncMetric, StoreMetric};
+#[cfg(target_os = "linux")]
 use crate::utils::u64_to_usize;
 use crate::vmm_config::drive::BlockDeviceConfig;
+#[cfg(target_os = "linux")]
 use crate::vstate::memory::GuestMemoryMmap;
 
 /// Block device config space size in bytes.
@@ -35,7 +46,7 @@ const BLOCK_CONFIG_SPACE_SIZE: u32 = 60;
 
 const AVAILABLE_FEATURES: u64 = (1 << VIRTIO_F_VERSION_1)
     | (1 << VIRTIO_RING_F_EVENT_IDX)
-    // vhost-user specific bit. Not defined in standart virtio spec.
+    // vhost-user specific bit. Not defined in standard virtio spec.
     // Specifies ability of frontend to negotiate protocol features.
     | VhostUserVirtioFeatures::PROTOCOL_FEATURES.bits()
     // We always try to negotiate readonly with the backend.
@@ -89,16 +100,21 @@ impl TryFrom<&BlockDeviceConfig> for VhostUserBlockConfig {
 impl From<VhostUserBlockConfig> for BlockDeviceConfig {
     fn from(value: VhostUserBlockConfig) -> Self {
         Self {
+            #[cfg(target_os = "linux")]
             drive_id: value.drive_id,
+            #[cfg(target_os = "linux")]
             partuuid: value.partuuid,
             is_root_device: value.is_root_device,
+            #[cfg(target_os = "linux")]
             cache_type: value.cache_type,
 
             is_read_only: None,
             path_on_host: None,
+            #[cfg(target_os = "linux")]
             rate_limiter: None,
+            #[cfg(target_os = "linux")]
             file_engine_type: None,
-
+            #[cfg(target_os = "linux")]
             socket: Some(value.socket),
         }
     }
@@ -383,46 +399,61 @@ mod tests {
     #[test]
     fn test_from_config() {
         let block_config = BlockDeviceConfig {
+            #[cfg(target_os = "linux")]
             drive_id: "".to_string(),
+            #[cfg(target_os = "linux")]
             partuuid: None,
             is_root_device: false,
+            #[cfg(target_os = "linux")]
             cache_type: CacheType::Unsafe,
 
             is_read_only: None,
             path_on_host: None,
+            #[cfg(target_os = "linux")]
             rate_limiter: None,
+            #[cfg(target_os = "linux")]
             file_engine_type: None,
-
+            #[cfg(target_os = "linux")]
             socket: Some("sock".to_string()),
         };
         VhostUserBlockConfig::try_from(&block_config).unwrap();
 
         let block_config = BlockDeviceConfig {
+            #[cfg(target_os = "linux")]
             drive_id: "".to_string(),
+            #[cfg(target_os = "linux")]
             partuuid: None,
             is_root_device: false,
+            #[cfg(target_os = "linux")]
             cache_type: CacheType::Unsafe,
 
             is_read_only: Some(true),
             path_on_host: Some("path".to_string()),
+            #[cfg(target_os = "linux")]
             rate_limiter: None,
+            #[cfg(target_os = "linux")]
             file_engine_type: Some(FileEngineType::Sync),
-
+            #[cfg(target_os = "linux")]
             socket: None,
         };
         VhostUserBlockConfig::try_from(&block_config).unwrap_err();
 
         let block_config = BlockDeviceConfig {
+            #[cfg(target_os = "linux")]
             drive_id: "".to_string(),
+            #[cfg(target_os = "linux")]
             partuuid: None,
             is_root_device: false,
+            #[cfg(target_os = "linux")]
             cache_type: CacheType::Unsafe,
 
             is_read_only: Some(true),
             path_on_host: Some("path".to_string()),
+            #[cfg(target_os = "linux")]
             rate_limiter: None,
+            #[cfg(target_os = "linux")]
             file_engine_type: Some(FileEngineType::Sync),
-
+            #[cfg(target_os = "linux")]
             socket: Some("sock".to_string()),
         };
         VhostUserBlockConfig::try_from(&block_config).unwrap_err();

@@ -1,13 +1,20 @@
 // Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(target_os = "linux")]
 use std::convert::{From, TryInto};
+#[cfg(target_os = "linux")]
 use std::fs::{File, OpenOptions};
+#[cfg(target_os = "linux")]
 use std::io;
+#[cfg(target_os = "linux")]
 use std::os::unix::fs::OpenOptionsExt;
+#[cfg(target_os = "linux")]
 use std::path::Path;
 
+#[cfg(target_os = "linux")]
 use libc::O_NONBLOCK;
+#[cfg(target_os = "linux")]
 use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "linux")]

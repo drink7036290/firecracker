@@ -18,6 +18,7 @@ use crate::devices::virtio::AsAny;
 use crate::logger::{error, warn};
 use crate::vstate::memory::GuestMemoryMmap;
 
+#[cfg(target_os = "linux")]
 /// Enum that indicates if a VirtioDevice is inactive or has been activated
 /// and memory attached to it.
 #[derive(Debug)]
@@ -26,6 +27,7 @@ pub enum DeviceState {
     Activated(GuestMemoryMmap),
 }
 
+#[cfg(target_os = "linux")]
 impl DeviceState {
     /// Checks if the device is activated.
     pub fn is_activated(&self) -> bool {
@@ -44,6 +46,7 @@ impl DeviceState {
     }
 }
 
+#[cfg(target_os = "linux")]
 /// The 2 types of interrupt sources in MMIO transport.
 #[derive(Debug)]
 pub enum IrqType {
@@ -53,6 +56,7 @@ pub enum IrqType {
     Vring,
 }
 
+#[cfg(target_os = "linux")]
 /// Helper struct that is responsible for triggering guest IRQs
 #[derive(Debug)]
 pub struct IrqTrigger {
@@ -60,6 +64,7 @@ pub struct IrqTrigger {
     pub(crate) irq_evt: EventFd,
 }
 
+#[cfg(target_os = "linux")]
 impl IrqTrigger {
     pub fn new() -> std::io::Result<Self> {
         Ok(Self {
@@ -196,6 +201,7 @@ impl fmt::Debug for dyn VirtioDevice {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
