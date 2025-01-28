@@ -129,16 +129,17 @@ Vm # per vm content, vmm/src/vstate/vm.rs
 
 #=========
 
-cargo build --target aarch64-apple-darwin --bin firecracker
-
-ARCH="aarch64"
-
 mkdir -p ../firecracker_run
-cp build/cargo_target/$ARCH-unknown-linux-musl/debug/firecracker ../firecracker_run/
+cp macos.json firecracker.entitlements ../firecracker_run/
+
+BUILD_TARGET="aarch64-apple-darwin"
+
+cargo build --target $BUILD_TARGET --bin firecracker
+cp build/cargo_target/$BUILD_TARGET/debug/firecracker ../firecracker_run/
 
 cd ../firecracker_run
 codesign -f --entitlement ./firecracker.entitlements -s - ./firecracker
-sudo strace -ff -o fc-strace.log ./firecracker --no-api --config-file macos.json
+sudo dtruss -f ./firecracker --no-api --config-file macos.json
 
 #=========
 

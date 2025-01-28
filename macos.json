@@ -1,0 +1,17 @@
+{
+    "boot-source": {
+        "kernel_image_path": "./kernel-6.1.102",
+        "boot_args": "console=hvc0 root=/dev/vda"
+    },
+    "drives": [
+        {
+            "path_on_host": "./ubuntu-24.04.img",
+            "is_read_only": false,
+            "is_root_device": true
+        }
+    ],
+    "machine-config": {
+        "vcpu_count": 2,
+        "mem_size_mib": 1024
+    }
+}

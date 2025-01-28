@@ -53,8 +53,9 @@ use vmm::vmm_config::instance_info::{InstanceInfo, VmState};
 #[cfg(target_os = "linux")]
 use vmm::vmm_config::metrics::{init_metrics, MetricsConfig, MetricsConfigError};
 use vmm::FcExitCode;
+use vmm::HTTP_MAX_PAYLOAD_SIZE;
 #[cfg(target_os = "linux")]
-use vmm::{EventManager, HTTP_MAX_PAYLOAD_SIZE};
+use vmm::EventManager;
 use vmm_sys_util::terminal::Terminal;
 
 #[cfg(target_os = "linux")]
@@ -63,10 +64,8 @@ use crate::seccomp::SeccompConfig;
 // The reason we place default API socket under /run is that API socket is a
 // runtime file.
 // see https://refspecs.linuxfoundation.org/FHS_3.0/fhs/ch03s15.html for more information.
-#[cfg(target_os = "linux")]
 const DEFAULT_API_SOCK_PATH: &str = "/run/firecracker.socket";
 const FIRECRACKER_VERSION: &str = env!("CARGO_PKG_VERSION");
-#[cfg(target_os = "linux")]
 const MMDS_CONTENT_ARG: &str = "metadata";
 
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
@@ -178,10 +177,8 @@ fn main_exec() -> Result<(), MainError> {
         }
     }));
 
-    #[cfg(target_os = "linux")]
     let http_max_payload_size_str = HTTP_MAX_PAYLOAD_SIZE.to_string();
 
-    #[cfg(target_os = "linux")]
     let mut arg_parser =
         ArgParser::new()
             .arg(
@@ -301,23 +298,6 @@ fn main_exec() -> Result<(), MainError> {
                 Argument::new("mmds-size-limit")
                     .takes_value(true)
                     .help("Mmds data store limit, in bytes."),
-            );
-
-    let mut arg_parser =
-        ArgParser::new()
-            .arg(
-                Argument::new("config-file")
-                    .takes_value(true)
-                    .help("Path to a file that contains the microVM configuration in JSON format."),
-            )
-            .arg(
-                Argument::new("no-api")
-                    .takes_value(false)
-                    .requires("config-file")
-                    .help(
-                        "Optional parameter which allows starting and using a microVM without an \
-                         active API socket.",
-                    ),
             );
 
     arg_parser.parse_from_cmdline()?;
