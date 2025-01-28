@@ -6,24 +6,30 @@
 #[cfg(target_arch = "x86_64")]
 use std::convert::TryFrom;
 use std::fmt::Debug;
+use std::io;
+#[cfg(target_os = "linux")]
 use std::io::{self, Seek, SeekFrom};
 #[cfg(feature = "gdb")]
 use std::sync::mpsc;
+#[cfg(target_os = "linux")]
 use std::sync::{Arc, Mutex};
 
 #[cfg(target_os = "linux")]
 use event_manager::{MutEventSubscriber, SubscriberOps};
 #[cfg(target_os = "linux")]
 use libc::EFD_NONBLOCK;
+#[cfg(target_os = "linux")]
 use linux_loader::cmdline::Cmdline as LoaderKernelCmdline;
 #[cfg(target_arch = "x86_64")]
 use linux_loader::loader::elf::Elf as Loader;
 #[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 use linux_loader::loader::pe::PE as Loader;
+#[cfg(target_os = "linux")]
 use linux_loader::loader::KernelLoader;
 #[cfg(target_os = "linux")]
 use userfaultfd::Uffd;
+#[cfg(target_os = "linux")]
 use utils::time::TimestampUs;
 #[cfg(target_os = "linux")]
 use vm_memory::ReadVolatile;
@@ -57,38 +63,82 @@ use crate::device_manager::mmio::MMIODeviceManager;
 use crate::device_manager::persist::{
     ACPIDeviceManagerConstructorArgs, ACPIDeviceManagerRestoreError, MMIODevManagerConstructorArgs,
 };
+#[cfg(target_os = "linux")]
 use crate::device_manager::resources::ResourceAllocator;
+#[cfg(target_os = "linux")]
 use crate::devices::acpi::vmgenid::{VmGenId, VmGenIdError};
+#[cfg(target_os = "linux")]
 use crate::devices::legacy::serial::SerialOut;
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 use crate::devices::legacy::RTCDevice;
+#[cfg(target_os = "linux")]
 use crate::devices::legacy::{EventFdTrigger, SerialEventsWrapper, SerialWrapper};
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::balloon::Balloon;
 use crate::devices::virtio::block::device::Block;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::device::VirtioDevice;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::mmio::MmioTransport;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::net::Net;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::rng::Entropy;
+#[cfg(target_os = "linux")]
 use crate::devices::virtio::vsock::{Vsock, VsockUnixBackend};
+#[cfg(target_os = "linux")]
 use crate::devices::BusDevice;
 #[cfg(feature = "gdb")]
 use crate::gdb;
-use crate::logger::{debug, error};
+use crate::logger::debug;
+#[cfg(target_os = "linux")]
+use crate::logger::error;
+#[cfg(target_os = "linux")]
 use crate::persist::{MicrovmState, MicrovmStateError};
+#[cfg(target_os = "linux")]
 use crate::resources::VmResources;
 #[cfg(target_os = "linux")]
 use crate::seccomp::BpfThreadMap;
+#[cfg(target_os = "linux")]
 use crate::snapshot::Persist;
+#[cfg(target_os = "linux")]
 use crate::utils::u64_to_usize;
+#[cfg(target_os = "linux")]
 use crate::vmm_config::boot_source::BootConfig;
 use crate::vmm_config::instance_info::InstanceInfo;
+#[cfg(target_os = "macos")]
+use crate::vmm_config::instance_info::VmState;
+#[cfg(target_os = "linux")]
 use crate::vmm_config::machine_config::{MachineConfig, MachineConfigError};
+#[cfg(target_os = "linux")]
 use crate::vstate::kvm::Kvm;
+#[cfg(target_os = "macos")]
+use crate::vstate::avf::Avf;
+#[cfg(target_os = "macos")]
+use virt_fwk::{ DiskImageStorageDeviceAttachment, VirtioBlockDeviceConfiguration };
+#[cfg(target_os = "linux")]
 use crate::vstate::memory::{GuestAddress, GuestMemory, GuestMemoryMmap};
+#[cfg(target_os = "linux")]
 use crate::vstate::vcpu::{Vcpu, VcpuConfig, VcpuError};
 use crate::vstate::vm::Vm;
-use crate::{device_manager, EventManager, Vmm, VmmError};
+use crate::{Vmm, VmmError};
+#[cfg(target_os = "linux")]
+use crate::{device_manager, EventManager};
 
+#[cfg(target_os = "macos")]
+/// Errors associated with starting the instance.
+#[derive(Debug, thiserror::Error, displaydoc::Display)]
+pub enum StartMicrovmError {
+    /// Unable to attach block device to Vmm: {0}
+    AttachBlockDevice(io::Error),
+    /// Internal error while starting microVM: {0}
+    Internal(VmmError),
+    /// Cannot start microvm without kernel configuration.
+    MissingKernelConfig,
+}
+
+#[cfg(target_os = "linux")]
 /// Errors associated with starting the instance.
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 pub enum StartMicrovmError {
@@ -129,7 +179,6 @@ pub enum StartMicrovmError {
     MissingKernelConfig,
     /// Cannot start microvm without guest mem_size config.
     MissingMemSizeConfig,
-    #[cfg(target_os = "linux")]
     /// No seccomp filter for thread category: {0}
     MissingSeccompFilters(String),
     /// The net device configuration is missing the tap device.
@@ -157,6 +206,7 @@ pub enum StartMicrovmError {
     VcpuFdCloneError(#[from] crate::vstate::vcpu::CopyKvmFdError),
 }
 
+#[cfg(target_os = "linux")]
 /// It's convenient to automatically convert `linux_loader::cmdline::Error`s
 /// to `StartMicrovmError`s.
 impl std::convert::From<linux_loader::cmdline::Error> for StartMicrovmError {
@@ -189,9 +239,6 @@ fn create_vmm_and_vcpus(
 
                 block_devices.push(VirtioBlockDeviceConfiguration::new(attachment));
             }
-            _ => {
-                return Err(StartMicrovmError::UnsupportedBlockDevice);
-            }
         }
     }
 
@@ -210,7 +257,6 @@ fn create_vmm_and_vcpus(
         .map_err(StartMicrovmError::Internal)?;
 
     Ok(Vmm {
-        events_observer: Some(std::io::stdin()),
         instance_info: instance_info.clone(),
         shutdown_exit_code: None,
         avf,
@@ -319,18 +365,18 @@ fn create_vmm_and_vcpus(
 }
 
 #[cfg(target_os = "macos")]
+/// Configures and starts a microVM as described by the command-line JSON.
 pub fn build_microvm_for_boot(
     instance_info: &InstanceInfo,
     vm_resources: &super::resources::VmResources,
-) -> Result<Arc<Mutex<Vmm>>, StartMicrovmError> {
-    use self::StartMicrovmError::*;
+) -> Result<Box<Vmm>, StartMicrovmError> {
 
     let mut vmm = create_vmm_and_vcpus(
         instance_info,
         vm_resources,
     )?;
 
-    if let Some(stdin) = vmm.events_observer.as_mut() {
+/*     if let Some(stdin) = vmm.events_observer.as_mut() {
         // Set raw mode for stdin.
         stdin.lock().set_raw_mode().inspect_err(|&err| {
             warn!("Cannot set raw mode for the terminal. {:?}", err);
@@ -341,10 +387,10 @@ pub fn build_microvm_for_boot(
             warn!("Cannot set non block for the terminal. {:?}", err);
         })?;
     }
-
+ */
     vmm.instance_info.state = VmState::Paused;
 
-    Ok(Arc::new(Mutex::new(vmm)))
+    Ok(Box::new(vmm))
 }
 
 #[cfg(target_os = "linux")]
@@ -495,6 +541,24 @@ pub fn build_microvm_for_boot(
     Ok(vmm)
 }
 
+#[cfg(target_os = "macos")]
+/// Builds and starts a microVM based on the current Firecracker VmResources configuration.
+pub fn build_and_boot_microvm(
+    instance_info: &InstanceInfo,
+    vm_resources: &super::resources::VmResources,
+) -> Result<Box<Vmm>, StartMicrovmError> {
+    debug!("event_start: build microvm for boot");
+    let mut vmm = build_microvm_for_boot(instance_info, vm_resources,)?;
+    debug!("event_end: build microvm for boot");
+    // The vcpus start off in the `Paused` state, let them run.
+    debug!("event_start: boot microvm");
+    vmm.resume_vm()
+        .map_err(StartMicrovmError::Internal)?;
+    debug!("event_end: boot microvm");
+    Ok(vmm)
+}
+
+#[cfg(target_os = "linux")]
 /// Builds and boots a microVM based on the current Firecracker VmResources configuration.
 ///
 /// This is the default build recipe, one could build other microVM flavors by using the
@@ -505,14 +569,12 @@ pub fn build_microvm_for_boot(
 pub fn build_and_boot_microvm(
     instance_info: &InstanceInfo,
     vm_resources: &super::resources::VmResources,
-    #[cfg(target_os = "linux")]
     event_manager: &mut EventManager,
-    #[cfg(target_os = "linux")]
     seccomp_filters: &BpfThreadMap,
 ) -> Result<Arc<Mutex<Vmm>>, StartMicrovmError> {
     debug!("event_start: build microvm for boot");
     let vmm = build_microvm_for_boot(instance_info, vm_resources,
-        #[cfg(target_os = "linux")] event_manager, #[cfg(target_os = "linux")] seccomp_filters)?;
+        event_manager, seccomp_filters)?;
     debug!("event_end: build microvm for boot");
     // The vcpus start off in the `Paused` state, let them run.
     debug!("event_start: boot microvm");
@@ -788,6 +850,7 @@ pub fn setup_interrupt_controller(vm: &mut Vm) -> Result<(), StartMicrovmError> 
         .map_err(StartMicrovmError::Internal)
 }
 
+#[cfg(target_os = "linux")]
 /// Sets up the irqchip for a aarch64 microVM.
 #[cfg(target_arch = "aarch64")]
 pub fn setup_interrupt_controller(vm: &mut Vm, vcpu_count: u8) -> Result<(), StartMicrovmError> {
@@ -1048,6 +1111,7 @@ pub(crate) fn attach_boot_timer_device(
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 fn attach_vmgenid_device(vmm: &mut Vmm) -> Result<(), StartMicrovmError> {
     let vmgenid = VmGenId::new(&vmm.guest_memory, &mut vmm.resource_allocator)
         .map_err(StartMicrovmError::CreateVMGenID)?;
@@ -1158,6 +1222,7 @@ fn attach_balloon_device(
     attach_virtio_device(event_manager, vmm, id, balloon.clone(), cmdline, false)
 }
 
+#[cfg(target_os = "linux")]
 // Adds `O_NONBLOCK` to the stdout flags.
 pub(crate) fn set_stdout_nonblocking() {
     // SAFETY: Call is safe since parameters are valid.

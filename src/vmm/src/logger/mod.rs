@@ -5,6 +5,7 @@
 //! collecting.
 
 mod logging;
+#[cfg(target_os = "linux")]
 mod metrics;
 
 pub use log::{debug, error, info, log_enabled, trace, warn, Level};
@@ -12,10 +13,12 @@ pub use logging::{
     LevelFilter, LevelFilterFromStrError, LoggerConfig, LoggerInitError, LoggerUpdateError,
     DEFAULT_INSTANCE_ID, DEFAULT_LEVEL, INSTANCE_ID, LOGGER,
 };
+#[cfg(target_os = "linux")]
 pub use metrics::{
     IncMetric, LatencyAggregateMetrics, MetricsError, ProcessTimeReporter, SharedIncMetric,
     SharedStoreMetric, StoreMetric, METRICS,
 };
+#[cfg(target_os = "linux")]
 use utils::time::{get_time_us, ClockType};
 
 /// Alias for `std::io::LineWriter<std::fs::File>`.
@@ -36,6 +39,7 @@ pub fn log_dev_preview_warning(feature_name: &str, msg_opt: Option<String>) {
     }
 }
 
+#[cfg(target_os = "linux")]
 /// Helper function for updating the value of a store metric with elapsed time since some time in a
 /// past.
 pub fn update_metric_with_elapsed_time(metric: &SharedStoreMetric, start_time_us: u64) -> u64 {

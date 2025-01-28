@@ -33,6 +33,12 @@ timerfd = "1.6.0"
 micro_http = { git = "https://github.com/firecracker-microvm/micro-http" }
 event-manager = "0.4.0"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+#virt-fwk = { git = "https://github.com/drink7036290/virt-fwk", branch = "main" }
+virt-fwk = { path = "../../../virt-fwk/virt-fwk" }
+crossbeam-channel = "0.5.8"
+ctrlc = "3.2.5"
+
 [dev-dependencies]
 cargo_toml = "0.21.0"
 libc = "0.2.169"
@@ -62,30 +68,30 @@ gdb = ["vmm/gdb"]
 [lints]
 workspace = true
 
-[[example]]
-name = "uffd_malicious_handler"
-path = "examples/uffd/malicious_handler.rs"
+#[[example]]
+#name = "uffd_malicious_handler"
+#path = "examples/uffd/malicious_handler.rs"#
 
-[[example]]
-name = "uffd_valid_handler"
-path = "examples/uffd/valid_handler.rs"
+#[[example]]
+#name = "uffd_valid_handler"
+#path = "examples/uffd/valid_handler.rs"#
 
-[[example]]
-name = "uffd_fault_all_handler"
-path = "examples/uffd/fault_all_handler.rs"
+#[[example]]
+#name = "uffd_fault_all_handler"
+#path = "examples/uffd/fault_all_handler.rs"#
 
-[[example]]
-name = "seccomp_harmless"
-path = "examples/seccomp/harmless.rs"
+#[[example]]
+#name = "seccomp_harmless"
+#path = "examples/seccomp/harmless.rs"#
 
-[[example]]
-name = "seccomp_jailer"
-path = "examples/seccomp/jailer.rs"
+#[[example]]
+#name = "seccomp_jailer"
+#path = "examples/seccomp/jailer.rs"#
 
-[[example]]
-name = "seccomp_malicious"
-path = "examples/seccomp/malicious.rs"
+#[[example]]
+#name = "seccomp_malicious"
+#path = "examples/seccomp/malicious.rs"#
 
-[[example]]
-name = "seccomp_panic"
-path = "examples/seccomp/panic.rs"
+#[[example]]
+#name = "seccomp_panic"
+#path = "examples/seccomp/panic.rs"

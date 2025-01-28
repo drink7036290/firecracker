@@ -104,7 +104,7 @@ Vmm/src/builder.rs
 *            load_kernel()
 *            load_initrd_from_config()
 *                load_initrd()
-^            create_vmm_and_vcpus()
+^            create_vmm_and_vcpus() #InstanceInfo
 *                create_vcpus()
 ^            attach_block_devices()
 *            configure_system_for_boot()

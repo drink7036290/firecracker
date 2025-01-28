@@ -13,6 +13,7 @@ use log::{Log, Metadata, Record};
 use serde::{Deserialize, Deserializer, Serialize};
 use utils::time::LocalTime;
 
+#[cfg(target_os = "linux")]
 use super::metrics::{IncMetric, METRICS};
 
 /// Default level filter for logger matching the swagger specification
@@ -172,6 +173,7 @@ impl Log for Logger {
             // If the write returns an error, increment missed log count.
             // No reason to log the error to stderr here, just increment the metric.
             if result.is_err() {
+                #[cfg(target_os = "linux")]
                 METRICS.logger.missed_log_count.inc();
             }
         }

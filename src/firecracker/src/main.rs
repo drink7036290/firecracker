@@ -12,12 +12,17 @@ mod metrics;
 #[cfg(target_os = "linux")]
 mod seccomp;
 
-use std::fs::{self, File};
+use std::fs;
+#[cfg(target_os = "linux")]
+use std::fs::File;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
+#[cfg(target_os = "linux")]
 use std::sync::{Arc, Mutex};
 use std::{io, panic};
+
+use virt_fwk::VirtualMachineState;
 
 #[cfg(target_os = "linux")]
 use api_server_adapter::ApiServerError;
@@ -30,9 +35,10 @@ use utils::validators::validate_instance_id;
 #[cfg(target_os = "linux")]
 use vmm::arch::host_page_size;
 use vmm::builder::StartMicrovmError;
+use vmm::logger::{error, info, LoggerConfig, LOGGER,};
 #[cfg(target_os = "linux")]
 use vmm::logger::{
-    debug, error, info, LoggerConfig, ProcessTimeReporter, StoreMetric, LOGGER, METRICS,
+    debug, ProcessTimeReporter, StoreMetric, METRICS,
 };
 #[cfg(target_os = "linux")]
 use vmm::persist::SNAPSHOT_VERSION;
@@ -46,8 +52,9 @@ use vmm::snapshot::{Snapshot, SnapshotError};
 use vmm::vmm_config::instance_info::{InstanceInfo, VmState};
 #[cfg(target_os = "linux")]
 use vmm::vmm_config::metrics::{init_metrics, MetricsConfig, MetricsConfigError};
+use vmm::FcExitCode;
 #[cfg(target_os = "linux")]
-use vmm::{EventManager, FcExitCode, HTTP_MAX_PAYLOAD_SIZE};
+use vmm::{EventManager, HTTP_MAX_PAYLOAD_SIZE};
 use vmm_sys_util::terminal::Terminal;
 
 #[cfg(target_os = "linux")]
@@ -64,7 +71,6 @@ const MMDS_CONTENT_ARG: &str = "metadata";
 
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 enum MainError {
-    #[cfg(target_os = "linux")]
     /// Failed to set the logger: {0}
     SetLogger(vmm::logger::LoggerInitError),
     #[cfg(target_os = "linux")]
@@ -75,10 +81,8 @@ enum MainError {
     #[cfg(target_os = "linux")]
     /// When printing Snapshot Data format: {0}
     PrintSnapshotDataFormat(#[from] SnapshotVersionError),
-    #[cfg(target_os = "linux")]
     /// Invalid value for logger level: {0}.Possible values: [Error, Warning, Info, Debug]
     InvalidLogLevel(vmm::logger::LevelFilterFromStrError),
-    #[cfg(target_os = "linux")]
     /// Could not initialize logger: {0}
     LoggerInitialization(vmm::logger::LoggerUpdateError),
     #[cfg(target_os = "linux")]
@@ -97,6 +101,7 @@ enum MainError {
     RunWithoutApiError(RunWithoutApiError),
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 enum ResizeFdTableError {
     /// Failed to get RLIMIT_NOFILE
@@ -112,7 +117,9 @@ impl From<MainError> for FcExitCode {
         match value {
             MainError::ParseArguments(_) => FcExitCode::ArgParsing,
             MainError::InvalidLogLevel(_) => FcExitCode::BadConfiguration,
+            #[cfg(target_os = "linux")]
             MainError::RunWithApi(ApiServerError::MicroVMStoppedWithError(code)) => code,
+            #[cfg(target_os = "linux")]
             MainError::RunWithoutApiError(RunWithoutApiError::Shutdown(code)) => code,
             _ => FcExitCode::GenericError,
         }
@@ -134,14 +141,15 @@ fn main() -> ExitCode {
 }
 
 fn main_exec() -> Result<(), MainError> {
-    #[cfg(target_os = "linux")]
     // Initialize the logger.
     LOGGER.init().map_err(MainError::SetLogger)?;
 
+    #[cfg(target_os = "linux")]
+    {
     // First call to this function updates the value to current
     // host page size.
     _ = host_page_size();
-
+    }
     // We need this so that we can reset terminal to canonical mode if panic occurs.
     let stdin = io::stdin();
 
@@ -315,14 +323,12 @@ fn main_exec() -> Result<(), MainError> {
     arg_parser.parse_from_cmdline()?;
     let arguments = arg_parser.arguments();
 
-    #[cfg(target_os = "linux")]
     if arguments.flag_present("help") {
         println!("Firecracker v{}\n", FIRECRACKER_VERSION);
         println!("{}", arg_parser.formatted_help());
         return Ok(());
     }
 
-    #[cfg(target_os = "linux")]
     if arguments.flag_present("version") {
         println!("Firecracker v{}\n", FIRECRACKER_VERSION);
         return Ok(());
@@ -340,32 +346,23 @@ fn main_exec() -> Result<(), MainError> {
         return Ok(());
     }
 
-    #[cfg(target_os = "linux")]
     // It's safe to unwrap here because the field's been provided with a default value.
     let instance_id = arguments.single_value("id").unwrap();
-    #[cfg(target_os = "linux")]
     validate_instance_id(instance_id.as_str()).expect("Invalid instance ID");
 
-    #[cfg(target_os = "linux")]
     // Apply the logger configuration.
     vmm::logger::INSTANCE_ID
         .set(String::from(instance_id))
         .unwrap();
-    #[cfg(target_os = "linux")]
     let log_path = arguments.single_value("log-path").map(PathBuf::from);
-    #[cfg(target_os = "linux")]
     let level = arguments
         .single_value("level")
         .map(|s| vmm::logger::LevelFilter::from_str(s))
         .transpose()
         .map_err(MainError::InvalidLogLevel)?;
-    #[cfg(target_os = "linux")]
     let show_level = arguments.flag_present("show-level").then_some(true);
-    #[cfg(target_os = "linux")]
     let show_log_origin = arguments.flag_present("show-log-origin").then_some(true);
-    #[cfg(target_os = "linux")]
     let module = arguments.single_value("module").cloned();
-    #[cfg(target_os = "linux")]
     LOGGER
         .update(LoggerConfig {
             log_path,
@@ -402,8 +399,6 @@ fn main_exec() -> Result<(), MainError> {
     // Currently unused since there are no deprecated parameters. Uncomment the line when
     // deprecating one.
     // warn_deprecated_parameters(&arguments);
-
-    #[cfg(target_os = "linux")]
     let instance_info = InstanceInfo {
         id: instance_id.clone(),
         state: VmState::NotStarted,
@@ -521,10 +516,12 @@ fn main_exec() -> Result<(), MainError> {
     #[cfg(target_os = "macos")]
     run_without_api(
         vmm_config_json,
+        instance_info,
     )
     .map_err(MainError::RunWithoutApiError)
 }
 
+#[cfg(target_os = "linux")]
 /// Attempts to resize the processes file descriptor table to match RLIMIT_NOFILE or 2048 if no
 /// RLIMIT_NOFILE is set (this can only happen if firecracker is run outside the jailer. 2048 is
 /// the default the jailer would set).
@@ -573,6 +570,7 @@ fn resize_fdtable() -> Result<(), ResizeFdTableError> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 /// Enable SSBD mitigation through `prctl`.
 #[cfg(target_arch = "aarch64")]
 pub fn enable_ssbd_mitigation() {
@@ -606,6 +604,7 @@ pub fn enable_ssbd_mitigation() {
 #[allow(unused)]
 fn warn_deprecated_parameters() {}
 
+#[cfg(target_os = "linux")]
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 enum SnapshotVersionError {
     /// Unable to open snapshot state file: {0}
@@ -614,6 +613,7 @@ enum SnapshotVersionError {
     SnapshotVersion(SnapshotError),
 }
 
+#[cfg(target_os = "linux")]
 // Print data format of provided snapshot state file.
 fn print_snapshot_data_format(snapshot_path: &str) -> Result<(), SnapshotVersionError> {
     let mut snapshot_reader =
@@ -638,11 +638,13 @@ pub enum BuildFromJsonError {
 // Configure and start a microVM as described by the command-line JSON.
 fn build_microvm_from_json(
     config_json: String,
-) -> Result<(VmResources, Arc<Mutex<vmm::Vmm>>), BuildFromJsonError> {
-    let mut vm_resources =
-        VmResources::from_json(&config_json,)
-            .map_err(BuildFromJsonError::ParseFromJson)?;
+    instance_info: InstanceInfo,
+) -> Result<(VmResources, Box<vmm::Vmm>), BuildFromJsonError> {
+    let vm_resources = VmResources::from_json(
+            &config_json,
+        ).map_err(BuildFromJsonError::ParseFromJson)?;
     let vmm = vmm::builder::build_and_boot_microvm(
+        &instance_info,
         &vm_resources,
     ).map_err(BuildFromJsonError::StartMicroVM)?;
 
@@ -684,10 +686,16 @@ fn build_microvm_from_json(
 
 #[derive(Debug, thiserror::Error, displaydoc::Display)]
 enum RunWithoutApiError {
+    #[cfg(target_os = "linux")]
     /// MicroVMStopped without an error: {0:?}
     Shutdown(FcExitCode),
     /// Failed to build MicroVM from Json: {0}
     BuildMicroVMFromJson(BuildFromJsonError),
+    #[cfg(target_os = "macos")]
+    /// I/O error: {0}
+    IoError(#[from] std::io::Error),
+    /// Ctrl error: {0}
+    CtrlError(#[from] ctrlc::Error),
 }
 
 #[cfg(target_os = "linux")]
@@ -746,19 +754,23 @@ use crossbeam_channel::{bounded, select, Receiver};
 #[cfg(target_os = "macos")]
 fn run_without_api(
     config_json: Option<String>,
+    instance_info: InstanceInfo,
 ) -> Result<(), RunWithoutApiError> {
     // Build the microVm. We can ignore VmResources since it's not used without api.
-    let (_, vmm) = build_microvm_from_json(
+
+    use std::io::stdin;
+    let (_, mut vmm) = build_microvm_from_json(
         config_json.unwrap(),
+        instance_info,
     )
     .map_err(RunWithoutApiError::BuildMicroVMFromJson)?;
 
-    let std_in = &vmm.events_observer.unwrap();
+    let std_in = stdin();
     let termios = get_terminal_attr(&std_in)?;
     set_raw_mode(&std_in)?;
 
     let ctrl_c_events = ctrl_channel()?;
-    let state_changes = self.vm.get_state_channel();
+    let state_changes = vmm.vm.instance.get_state_channel();
 
     println!("Waiting for VM state changes...");
     loop {
@@ -791,7 +803,17 @@ fn run_without_api(
 }
 
 #[cfg(target_os = "macos")]
-use std::{io, mem, os::fd::AsRawFd};
+use std::{mem, os::fd::AsRawFd};
+
+#[cfg(target_os = "macos")]
+fn ctrl_channel() -> Result<Receiver<()>, ctrlc::Error> {
+    let (sender, receiver) = bounded(100);
+    ctrlc::set_handler(move || {
+        let _ = sender.send(());
+    })?;
+
+    Ok(receiver)
+}
 
 #[cfg(target_os = "macos")]
 // Support functions for converting libc return values to io errors {
@@ -822,6 +844,9 @@ fn cvt<T: IsMinusOne>(t: T) -> io::Result<T> {
 
 #[cfg(target_os = "macos")]
 pub fn get_terminal_attr(fd: &impl AsRawFd) -> io::Result<libc::termios> {
+    // SAFETY: calling `tcgetattr` on a valid file descriptor is safe as long as
+    // the fd points to a valid terminal. `mem::zeroed()` produces an all-zeroed
+    // termios struct, which is acceptable to pass to `tcgetattr`.
     unsafe {
         let mut termios = mem::zeroed();
         cvt(libc::tcgetattr(fd.as_raw_fd(), &mut termios))?;
@@ -831,6 +856,8 @@ pub fn get_terminal_attr(fd: &impl AsRawFd) -> io::Result<libc::termios> {
 
 #[cfg(target_os = "macos")]
 pub fn set_terminal_attr(fd: &impl AsRawFd, termios: &libc::termios) -> io::Result<()> {
+    // SAFETY: we assume `fd` is a valid terminal descriptor, and `termios` is
+    // a properly allocated struct. `tcsetattr` is safe as long as both assumptions hold.
     cvt(unsafe { libc::tcsetattr(fd.as_raw_fd(), libc::TCSANOW, termios) }).and(Ok(()))
 }
 

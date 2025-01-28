@@ -76,7 +76,6 @@ pub mod rate_limiter;
 /// Currently, we only use ACPI on x86 microVMs.
 #[cfg(target_arch = "x86_64")]
 pub mod acpi;
-#[cfg(target_os = "linux")]
 /// Handles setup and initialization a `Vmm` object.
 pub mod builder;
 #[cfg(target_os = "linux")]
@@ -96,7 +95,6 @@ pub mod dumbo;
 #[cfg(feature = "gdb")]
 pub mod gdb;
 
-#[cfg(target_os = "linux")]
 /// Logger
 pub mod logger;
 #[cfg(target_os = "linux")]
@@ -375,7 +373,7 @@ pub enum DumpCpuConfigError {
 /// Contains the state and associated methods required for the Firecracker VMM.
 #[derive(Debug)]
 pub struct Vmm {
-    #[allow(dead_code)]
+    #[cfg(target_os = "linux")]
     events_observer: Option<std::io::Stdin>,
     /// The [`InstanceInfo`] state of this [`Vmm`].
     pub instance_info: InstanceInfo,
@@ -384,10 +382,14 @@ pub struct Vmm {
     // Guest VM core resources.
     #[cfg(target_os = "linux")]
     kvm: Kvm,
+    #[cfg(target_os = "linux")]
+    vm: Vm,
     #[cfg(target_os = "macos")]
     #[allow(dead_code)]
     avf: Avf,
-    vm: Vm,
+    #[cfg(target_os = "macos")]
+    /// The virtual machine.
+    pub vm: Vm,
     #[cfg(target_os = "linux")]
     guest_memory: GuestMemoryMmap,
     #[cfg(target_os = "linux")]

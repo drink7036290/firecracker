@@ -3,11 +3,16 @@
 
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
+#[cfg(target_os = "linux")]
 use std::env::args;
+#[cfg(target_os = "linux")]
 use std::fs::File;
+#[cfg(target_os = "linux")]
 use std::os::unix::process::CommandExt;
+#[cfg(target_os = "linux")]
 use std::process::{Command, Stdio};
 
+#[cfg(target_os = "linux")]
 use vmm::seccomp::{apply_filter, deserialize_binary};
 
 #[cfg(target_os = "linux")]

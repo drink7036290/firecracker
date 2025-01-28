@@ -1,13 +1,19 @@
 // Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(target_os = "linux")]
 use std::collections::HashMap;
+#[cfg(target_os = "linux")]
 use std::fmt::Debug;
+#[cfg(target_os = "linux")]
 use std::path::Path;
 
+#[cfg(target_os = "linux")]
 use cargo_toml::{Dependency, DepsSet, Manifest};
+#[cfg(target_os = "linux")]
 use regex::Regex;
 
+#[cfg(target_os = "linux")]
 #[test]
 fn test_no_comparison_requirements() {
     // HashMap mapping crate -> [(violating dependency, specified version)]
@@ -40,6 +46,7 @@ fn test_no_comparison_requirements() {
     );
 }
 
+#[cfg(target_os = "linux")]
 /// Parses the specified Cargo.toml file and returns any dependencies specified using a comparison
 /// requirements.
 ///
@@ -57,6 +64,7 @@ fn violating_dependencies_of_cargo_toml<T: AsRef<Path> + Debug>(
         .collect()
 }
 
+#[cfg(target_os = "linux")]
 /// Returns an iterator over all dependencies in the given DepsSet specified using comparison
 /// requirements
 ///

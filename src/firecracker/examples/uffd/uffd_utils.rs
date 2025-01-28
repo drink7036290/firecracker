@@ -11,9 +11,12 @@ use std::os::unix::net::UnixStream;
 use std::ptr;
 
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "linux")]
 use userfaultfd::{Error, Event, Uffd};
+#[cfg(target_os = "linux")]
 use vmm_sys_util::sock_ctrl_msg::ScmSocket;
 
+#[cfg(target_os = "linux")]
 // This is the same with the one used in src/vmm.
 /// This describes the mapping between Firecracker base virtual address and offset in the
 /// buffer or file backend for a guest memory region. It is used to tell an external
@@ -34,6 +37,7 @@ pub struct GuestRegionUffdMapping {
     pub page_size_kib: usize,
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug, Clone, Copy)]
 pub enum MemPageState {
     Uninitialized,
@@ -42,12 +46,14 @@ pub enum MemPageState {
     Anonymous,
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug, Clone)]
 pub struct MemRegion {
     pub mapping: GuestRegionUffdMapping,
     page_states: HashMap<u64, MemPageState>,
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug)]
 pub struct UffdHandler {
     pub mem_regions: Vec<MemRegion>,

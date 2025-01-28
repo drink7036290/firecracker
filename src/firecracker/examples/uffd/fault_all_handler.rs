@@ -7,11 +7,15 @@
 
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
+#[cfg(target_os = "linux")]
 mod uffd_utils;
 
+#[cfg(target_os = "linux")]
 use std::fs::File;
+#[cfg(target_os = "linux")]
 use std::os::unix::net::UnixListener;
 
+#[cfg(target_os = "linux")]
 use uffd_utils::{Runtime, UffdHandler};
 
 #[cfg(target_os = "linux")]
