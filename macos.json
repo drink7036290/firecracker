@@ -1,7 +1,7 @@
 {
     "boot-source": {
         "kernel_image_path": "./kernel-6.1.102",
-        "boot_args": "console=hvc0 root=/dev/vda"
+        "boot_args": "console=hvc0 root=/dev/vda rw"
     },
     "drives": [
         {

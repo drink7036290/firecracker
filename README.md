@@ -1,3 +1,11 @@
+# Firecracker + Apple Silicon
+
+This repository provides a Firecracker fork that runs on macOS with native performance.
+
+For detailed results, benchmarks, and instructions on how to run this variant, see:
+[docs/macos-avf-notes.md](docs/macos-avf-notes.md).
+
+
 <picture>
    <source media="(prefers-color-scheme: dark)" srcset="docs/images/fc_logo_full_transparent-bg_white-fg.png">
    <source media="(prefers-color-scheme: light)" srcset="docs/images/fc_logo_full_transparent-bg.png">

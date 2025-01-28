@@ -34,8 +34,7 @@ micro_http = { git = "https://github.com/firecracker-microvm/micro-http" }
 event-manager = "0.4.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-#virt-fwk = { git = "https://github.com/drink7036290/virt-fwk", branch = "main" }
-virt-fwk = { path = "../../../virt-fwk/virt-fwk" }
+virt-fwk = { git = "https://github.com/drink7036290/virt-fwk", branch = "main" }
 crossbeam-channel = "0.5.8"
 ctrlc = "3.2.5"
 

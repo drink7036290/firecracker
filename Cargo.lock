@@ -1483,6 +1483,7 @@ dependencies = [
 [[package]]
 name = "virt-fwk"
 version = "0.1.0"
+source = "git+https://github.com/drink7036290/virt-fwk?branch=main#a61bc2b13acb09cac8d2cf9c01effe0fea489fb6"
 dependencies = [
  "block2",
  "crossbeam-channel",
