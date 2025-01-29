@@ -483,16 +483,16 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    main((main)) --> main_exec((main_exec))
-    main_exec --> run_without_api((run_without_api))
-    run_without_api --> build_microvm_from_json((build_microvm_from_json))
-    build_microvm_from_json --> build_and_boot_microvm((build_and_boot_microvm))
-    build_and_boot_microvm --> build_microvm_for_boot((build_microvm_for_boot))
-    build_microvm_for_boot --> create_vmm_and_vcpus((create_vmm_and_vcpus))
-    create_vmm_and_vcpus --> Avf_new((Avf::new))
-    create_vmm_and_vcpus --> Vm_new((Vm::new))
-    build_and_boot_microvm --> vmm_resume((vmm.resume_vm))
-    run_without_api --> simplified_looping((simplified looping without event_manager))
+    main["main"] --> main_exec["main_exec"]
+    main_exec --> run_without_api["run_without_api"]
+    run_without_api --> build_microvm_from_json["build_microvm_from_json"]
+    build_microvm_from_json --> build_and_boot_microvm["build_and_boot_microvm"]
+    build_and_boot_microvm --> build_microvm_for_boot["build_microvm_for_boot"]
+    build_microvm_for_boot --> create_vmm_and_vcpus["create_vmm_and_vcpus"]
+    create_vmm_and_vcpus --> Avf_new["Avf::new"]
+    create_vmm_and_vcpus --> Vm_new["Vm::new"]
+    build_and_boot_microvm --> vmm_resume["vmm.resume_vm"]
+    run_without_api --> simplified_looping["simplified looping without event_manager"]
 ```
 
 ## To Do
