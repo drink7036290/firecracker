@@ -7,6 +7,10 @@ use virt_fwk::{
     VirtioBlockDeviceConfiguration,
     FileHandleSerialPortAttachment,
     VirtioConsoleDeviceSerialPortConfiguration,
+    VirtioNetworkDeviceConfiguration,
+    NATNetworkDeviceAttachment,
+    MACAddress,
+    VirtioTraditionalMemoryBalloonDeviceConfiguration,
 };
 
 /// Errors associated with the wrappers over AVF functions.
@@ -59,6 +63,18 @@ impl Avf {
 
         // block devices
         config.set_storage_devices(block_devices);
+
+        // network devices
+        let network_device = VirtioNetworkDeviceConfiguration::new_with_attachment(
+            NATNetworkDeviceAttachment::new(),
+        );
+        network_device.set_mac_address(MACAddress::new_with_random_locally_administered_address());
+
+        config.set_network_devices(vec![network_device]);
+
+        // memory balloon
+        let memory_balloon = VirtioTraditionalMemoryBalloonDeviceConfiguration::new();
+        config.set_memory_balloon_devices(vec![memory_balloon]);
 
         // config validation
         if let Err(msg) = config.validate() {

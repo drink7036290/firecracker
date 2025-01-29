@@ -5,7 +5,7 @@
     },
     "drives": [
         {
-            "path_on_host": "./ubuntu-24.04.img",
+            "path_on_host": "./ubuntu-24.04.ext4",
             "is_read_only": false,
             "is_root_device": true
         }

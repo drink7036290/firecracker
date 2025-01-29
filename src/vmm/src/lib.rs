@@ -977,11 +977,7 @@ impl Vmm {
 
         let vm = &mut self.vm.instance;
 
-        if !vm.can_stop() {
-            println!("VM can't stop! state: {:?}", vm.state());
-            println!("Force exiting...");
-        }
-        else {
+        if vm.can_stop() {
             println!("Stopping VM...");
 
             let _ = vm.stop().map_err(|err| {

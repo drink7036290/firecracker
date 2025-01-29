@@ -5,6 +5,7 @@ This repository provides a Firecracker fork that runs on macOS with native perfo
 For detailed results, benchmarks, and instructions on how to run this variant, see:
 [docs/macos-avf-notes.md](docs/macos-avf-notes.md).
 
+## Same content below as the main Firecracker repo
 
 <picture>
    <source media="(prefers-color-scheme: dark)" srcset="docs/images/fc_logo_full_transparent-bg_white-fg.png">
