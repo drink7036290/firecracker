@@ -89,7 +89,7 @@ Move the kernel image to the running directory:
 mv assets/kernel-6.1.102 $FIRECRACKER_RUN_DIR
 ```
 
-### Prepare the rootfs
+### Prepare the rootfs (ubuntu-24.04.squashfs)
 
 Similar as the `getting-started.md` with some tweaks for macOS.
 
@@ -179,7 +179,7 @@ mv ubuntu-24.04.ext4 $FIRECRACKER_RUN_DIR
     openssl speed
     ```
 
-## Running results
+## Running results (ubuntu-24.04.squashfs)
 
 ```bash
 % sudo dtruss -f ./firecracker --no-api --config-file macos.json
@@ -512,3 +512,148 @@ flowchart LR
 - move rust-bindings from virt-fwk into rust-vmm
 
 - ...etc.
+
+## Another example
+
+### Prepare the rootfs (alpine-minirootfs-3.21.2-aarch64.tar.gz)
+
+```bash
+# Download and decompress the rootfs
+ROOTFS="alpine-minirootfs-3.21.2-aarch64"
+wget https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/aarch64/$ROOTFS.tar.gz
+
+mkdir -p $ROOTFS
+tar -xzf $ROOTFS.tar.gz -C $ROOTFS
+
+cd $ROOTFS
+sudo cp ../../firecracker/docs/rootfs/alpine-minirootfs-3.21.2-aarch64/inittab etc/inittab
+mkdir -p etc/init.d
+sudo cp ../../firecracker/docs/rootfs/alpine-minirootfs-3.21.2-aarch64/rcS etc/init.d
+chmod +x etc/init.d/rcS
+cd -
+
+# Create an ssh key for the rootfs
+rm -f $ROOTFS.id_rsa
+ssh-keygen -f id_rsa -N ""
+cp -v id_rsa.pub $ROOTFS/root/.ssh/authorized_keys
+mv -v id_rsa ./$ROOTFS.id_rsa
+
+# Create ext4 filesystem image
+sudo rm -fr $ROOTFS.ext4
+sudo chown -R root:wheel $ROOTFS
+truncate -s 20M $ROOTFS.ext4
+brew install e2fsprogs
+sudo /opt/homebrew/opt/e2fsprogs/sbin/mke2fs -d $ROOTFS -t ext4 $ROOTFS.ext4
+mv $ROOTFS.ext4 $FIRECRACKER_RUN_DIR
+```
+
+### Running results (alpine-minirootfs-3.21.2-aarch64)
+
+```bash
+firecracker_run % sudo dtruss -f ./firecracker --no-api --config-file macos.json
+dtrace: system integrity protection is on, some features will not be available
+
+        PID/THRD  SYSCALL(args)                  = return
+2025-02-02T17:49:06.392249000 [anonymous-instance:main] Running Firecracker v1.11.0-dev
+can_start: true
+Starting VM...
+2025-02-02T17:49:06.561219000 [anonymous-instance:main] Successfully started microvm that was configured from one single json
+Waiting for VM state changes...
+[    0.067933] cacheinfo: Unable to detect cache hierarchy for CPU 0
+[    0.068605] loop: module loaded
+[    0.068699] virtio_blk virtio2: 1/0/0 default/read/poll queues
+[    0.068895] virtio_blk virtio2: [vda] 102400 512-byte logical blocks (52.4 MB/50.0 MiB)
+[    0.069217] megasas: 07.719.03.00-rc1
+[    0.069701] tun: Universal TUN/TAP device driver, 1.6
+[    0.070823] thunder_xcv, ver 1.0
+[    0.070862] thunder_bgx, ver 1.0
+[    0.070958] nicpf, ver 1.0
+[    0.071058] hns3: Hisilicon Ethernet Network Driver for Hip08 Family - version
+[    0.071096] hns3: Copyright (c) 2017 Huawei Corporation.
+[    0.071130] hclge is initializing
+[    0.071161] e1000: Intel(R) PRO/1000 Network Driver
+[    0.071195] e1000: Copyright (c) 1999-2006 Intel Corporation.
+[    0.071236] e1000e: Intel(R) PRO/1000 Network Driver
+[    0.071263] e1000e: Copyright(c) 1999 - 2015 Intel Corporation.
+[    0.071295] igb: Intel(R) Gigabit Ethernet Network Driver
+[    0.071322] igb: Copyright (c) 2007-2014 Intel Corporation.
+[    0.071348] igbvf: Intel(R) Gigabit Virtual Function Network Driver
+[    0.071376] igbvf: Copyright (c) 2009 - 2012 Intel Corporation.
+[    0.071425] sky2: driver version 1.30
+[    0.071510] VFIO - User Level meta-driver version: 0.3
+[    0.071741] usbcore: registered new interface driver usb-storage
+[    0.071988] rtc-pl031 20050000.pl031: registered as rtc0
+[    0.072029] rtc-pl031 20050000.pl031: setting system clock to 2025-02-02T09:49:06 UTC (1738489746)
+[    0.072125] i2c_dev: i2c /dev entries driver
+[    0.072546] sdhci: Secure Digital Host Controller Interface driver
+[    0.072586] sdhci: Copyright(c) Pierre Ossman
+[    0.072653] Synopsys Designware Multimedia Card Interface Driver
+[    0.072857] sdhci-pltfm: SDHCI platform and OF driver helper
+[    0.073067] ledtrig-cpu: registered to indicate activity on CPUs
+[    0.073265] usbcore: registered new interface driver usbhid
+[    0.073303] usbhid: USB HID core driver
+[    0.073842] NET: Registered PF_PACKET protocol family
+[    0.073933] 9pnet: Installing 9P2000 support
+[    0.073969] Key type dns_resolver registered
+[    0.074023] registered taskstats version 1
+[    0.074047] Loading compiled-in X.509 certificates
+[    0.074542] input: gpio-keys as /devices/platform/gpio-keys/input/input0
+[    0.074620] clk: Disabling unused clocks
+[    0.074643] ALSA device list:
+[    0.074669]   No soundcards found.
+[    0.082711] EXT4-fs (vda): mounted filesystem with ordered data mode. Quota mode: none.
+[    0.082756] VFS: Mounted root (ext4 filesystem) on device 254:0.
+[    0.082848] devtmpfs: mounted
+[    0.083244] Freeing unused kernel memory: 7552K
+[    0.083299] Run /sbin/init as init process
+Minimal init script completed.
+/bin/sh: can't access tty; job control turned off
+~ # pwd
+/
+~ # apk update
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/main/aarch64/APKINDEX.tar.gz
+WARNING: updating and opening https://dl-cdn.alpinelinux.org/alpine/v3.21/main: temporary error (try again later)
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/community/aarch64/APKINDEX.tar.gz
+WARNING: updating and opening https://dl-cdn.alpinelinux.org/alpine/v3.21/community: temporary error (try again later)
+4 unavailable, 0 stale; 15 distinct packages available
+~ # ip a
+1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: eth0: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN qlen 1000
+    link/ether c2:c2:a0:c4:c6:6b brd ff:ff:ff:ff:ff:ff
+~ # ip addr add 192.168.64.10/24 dev eth0
+~ # ip link set eth0 up
+~ # ip route add default via 192.168.64.1
+~ # echo "nameserver 8.8.8.8" > /etc/resolv.conf
+~ # ip a
+1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP qlen 1000
+    link/ether c2:c2:a0:c4:c6:6b brd ff:ff:ff:ff:ff:ff
+    inet 192.168.64.10/24 scope global eth0
+       valid_lft forever preferred_lft forever
+~ # apk update
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/main/aarch64/APKINDEX.tar.gz
+[  250.501376] random: crng init done
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/community/aarch64/APKINDEX.tar.gz
+v3.21.2-165-g6048a20cfd7 [https://dl-cdn.alpinelinux.org/alpine/v3.21/main]
+v3.21.2-168-g6f09f12a0e7 [https://dl-cdn.alpinelinux.org/alpine/v3.21/community]
+OK: 25249 distinct packages available
+~ # cat /etc/os-release
+NAME="Alpine Linux"
+ID=alpine
+VERSION_ID=3.21.2
+PRETTY_NAME="Alpine Linux v3.21"
+HOME_URL="https://alpinelinux.org/"
+BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
+~ # apk add openssl
+(1/1) Installing openssl (3.3.2-r4)
+Executing busybox-1.37.0-r9.trigger
+OK: 8 MiB in 16 packages
+~ # openssl version
+OpenSSL 3.3.2 3 Sep 2024 (Library: OpenSSL 3.3.2 3 Sep 2024)
+~ # openssl speed
+Doing md5 ops for 3s on 16 size blocks: 16361364 md5 ops in 2.99s
+Doing md5 ops for 3s on 64 size blocks: 11183022 md5 ops in 3.00s
+Doing md5 ops for 3s on 256 size blocks:
+```

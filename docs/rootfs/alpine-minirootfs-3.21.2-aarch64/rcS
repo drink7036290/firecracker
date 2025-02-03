@@ -1,0 +1,7 @@
+#!/bin/sh
+mkdir -p /proc
+mount -t proc proc /proc
+
+# Spawn a shell on the console (this won't respawn if exited)
+exec /bin/sh
+
